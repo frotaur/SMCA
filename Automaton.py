@@ -45,9 +45,8 @@ class SMCA(Automaton):
         super().__init__(size)
         # 0,1,2,3 are  N,O,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (5,W,H)
-        self.particles[:,:,:]=0
-        self.particles = np.where(self.particles>1.4,1,0).astype(np.int16)
-        self.particles[1,100:190,40:60]=1
+        self.particles = np.where(self.particles>0.9,1,0).astype(np.int16)
+        self.particles[:,100:190,40:60]=1
 
         self.dir = numt.List([np.array([0,-1]),np.array([-1,0]),np.array([0,1]),np.array([1,0])])
 
@@ -57,7 +56,6 @@ class SMCA(Automaton):
         
 
     def propagation_step(self):
-
         self.particles=propagation_numba(self.particles,self.w,self.h,self.dir)
         
                     
@@ -65,7 +63,8 @@ class SMCA(Automaton):
         self.collision_step()
         self.propagation_step()
 
-        self._worldmap[:]=((self.particles.sum(axis=0)/4.)*255).astype(np.uint8)[:,:,None]
+        self._worldmap[:]=((self.particles.sum(axis=0)/4.))[:,:,None]
+
 
 
 @njit(parallel=True)
@@ -83,7 +82,7 @@ def collision_numba(particles,w,h):
 
 @njit(parallel=True)
 def propagation_numba(particles,w,h,dirdico):
-    newparticles=np.copy(particles)
+    newparticles=np.zeros_like(particles)
 
     for x in prange(w):
         for y in prange(h):
@@ -92,6 +91,5 @@ def propagation_numba(particles,w,h,dirdico):
                 if(particles[dir][x,y]==1):
                     newpos = (loc+dirdico[dir])%np.array([w,h])
                     newparticles[dir][newpos[0],newpos[1]]=1
-                    newparticles[dir][x,y]=0
     
     return newparticles
