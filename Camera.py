@@ -17,12 +17,12 @@ class Camera:
                 self.zoom /= 1.1
             elif event.button == 1:  # Left mouse button
                 self.drag_start = pygame.mouse.get_pos()
+
             if(self.zoom<1):
                 self.zoom=1.
-            if(self.zoom>20):
+            elif(self.zoom>20):
                 self.zoom=20
 
-            self.updateFov()
         elif event.type == pygame.MOUSEBUTTONUP:
             if event.button == 1:  # Left mouse button
                 self.drag_start = None
@@ -32,10 +32,11 @@ class Camera:
                 x0, y0 = self.drag_start
                 self.position.x += (x0 - x) / self.zoom
                 self.position.y += (y0 - y) / self.zoom
-                self.constrainCam()
                 self.drag_start = event.pos
-            self.updateFov()
+            
 
+        self.constrainCam()
+        self.updateFov()
 
     def constrainCam(self):
         fsize = pygame.Vector2(self.fov.size)/2

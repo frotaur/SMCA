@@ -4,7 +4,7 @@ from Camera import Camera
 from Automaton import *
 
 pygame.init()
-W,H = 400,400
+W,H =300,300
 screen = pygame.display.set_mode((W,H))
 clock = pygame.time.Clock()
 running = True
