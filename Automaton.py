@@ -1,5 +1,5 @@
 import numpy as np
-from numba import njit, prange
+from numba import njit, prange,cuda 
 import numba.typed as numt
 
 class Automaton :
@@ -48,19 +48,21 @@ class SMCA(Automaton):
         self.particles = np.where(self.particles>0.9,1,0).astype(np.int16)
         self.particles[:,100:190,40:60]=1
 
-        self.dir = numt.List([np.array([0,-1]),np.array([-1,0]),np.array([0,1]),np.array([1,0])])
+        self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])
 
     
     def collision_step(self):
-        self.particles=collision_numba(self.particles,self.w,self.h)
+        self.particles=collision_cpu(self.particles,self.w,self.h)
         
 
     def propagation_step(self):
-        self.particles=propagation_numba(self.particles,self.w,self.h,self.dir)
+        new_partics = np.copy(self.particles)
+        propagation_cuda(self.particles,new_partics,self.dir)
+        self.particles=new_partics
         
                     
     def step(self):
-        self.collision_step()
+        # self.collision_step()
         self.propagation_step()
 
         self._worldmap[:]=((self.particles.sum(axis=0)/4.))[:,:,None]
@@ -68,7 +70,7 @@ class SMCA(Automaton):
 
 
 @njit(parallel=True)
-def collision_numba(particles,w,h):
+def collision_cpu(particles,w,h):
     partictot = particles.sum(axis=0) # (W,H)
     for x in prange(w):
         for y in prange(h):
@@ -81,8 +83,9 @@ def collision_numba(particles,w,h):
     return particles
 
 @njit(parallel=True)
-def propagation_numba(particles,w,h,dirdico):
+def propagation_cpu(particles,w,h,dirdico):
     newparticles=np.zeros_like(particles)
+
 
     for x in prange(w):
         for y in prange(h):
@@ -93,3 +96,22 @@ def propagation_numba(particles,w,h,dirdico):
                     newparticles[dir][newpos[0],newpos[1]]=1
     
     return newparticles
+
+@cuda.jit
+def propagation_cuda(partic_t1,partic_t2,dirvecs):
+    """
+        Propagation step in cuda.
+        Params : 
+        partic_t1 : current state of the world
+        partic_t2 : array of zeros, will be filled with the particles
+        dirvec : vector of directions
+
+        TODO : share the memory of dirvecs
+    """
+    x,y = cuda.grid(2)
+    if(x<partic_t1.shape[0] and y<partic_t1.shape[1]):
+        loc = np.array([x,y])
+        for dir in range(4):
+            if(partic_t1[dir][x][y]==1):
+                newpos = (loc+dirvecs[dir])%np.array([w,h])
+                partic_t2[dir][newpos[0],newpos[1]]=1

@@ -1,4 +1,3 @@
-import torch
 import pygame
 from Camera import Camera
 from Automaton import *
@@ -10,7 +9,7 @@ clock = pygame.time.Clock()
 running = True
 camera = Camera(W,H)
 
-world_state = torch.randint(0,255,(W,H,3),dtype=torch.uint8)
+world_state = np.random.randint(0,255,(W,H,3),dtype=np.uint8)
 
 auto = SMCA((W,H))
 
