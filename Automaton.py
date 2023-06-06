@@ -46,19 +46,21 @@ class SMCA(Automaton):
     def __init__(self, size):
         super().__init__(size)
         # 0,1,2,3 are  N,O,S,E directions
-        self.particles = np.random.randn(4,self.w,self.h) # (5,W,H)
-        self.photons = np.zeros_like(self.particles,dtype=np.int16)
-        self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
+        self.particles = np.random.randn(4,2,self.w,self.h) # (4,presence+energy,W,H)
+        self.photons = np.zeros((4,self.w,self.h),dtype=np.int16)
+        self.particles = np.where(self.particles>1.9,1,0).astype(np.int16)
         self.particles[:,100:190,40:60]=1
         self.particles=np.zeros_like(self.particles)
-        self.particles[3,0,2] = 1
-        self.particles[1,43,2] = 1
+        self.particles[3,:,30,100] = 1
+        self.particles[3,1,30,100] = 3
+        self.particles[1,:,95,100] = 1
+        self.particles[1,1,95,100] = 3
 
 
         self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])
 
         self.emission_p = 1.
-        self.interaction_p = .0
+        self.interaction_p = 1.
 
     def collision_step(self):
         self.particles,self.photons= \
@@ -79,32 +81,52 @@ class SMCA(Automaton):
         
         
         self._worldmap = np.zeros_like(self._worldmap)
-        self._worldmap[:,:,1]+=((self.particles.sum(axis=0)/2.))
-        self._worldmap[:,:,:2]+=((self.photons.sum(axis=0)/2.))[:,:,None]
+        self._worldmap[:,:,1]+=((self.particles[:,0].sum(axis=0)/2.))
+        self._worldmap[:,:,:2]+=((self.photons.sum(axis=0)/4.))[:,:,None]
 
 @njit(parallel=True)
 def collision_cpu(particles :np.ndarray,photons,col_prob,emit_prob,w,h,dirdico):
-    partictot = particles.sum(axis=0) # (W,H)
+    partictot = particles[:,0].sum(axis=0) # (W,H)
     
     # Particle collision
-    # for x in prange(w):
-    #     for y in prange(h):
-    #         if(partictot[x,y]==2):
-    #             if(particles[0,x,y]==1 and particles[2,x,y]==1):
-    #                 particles[:,x,y]=np.array([0,1,0,1])
-    #             elif(particles[1,x,y]==1 and particles[3,x,y]==1):
-    #                 particles[:,x,y]=np.array([1,0,1,0])
+    for x in prange(w):
+        for y in prange(h):
+            if(partictot[x,y]==2):
+                if(particles[0,0,x,y]==1 and particles[2,0,x,y]==1):
+                    particles[1,:,x,y]=np.copy(particles[0,:,x,y])
+                    particles[3,:,x,y]=np.copy(particles[2,:,x,y])
+                elif(particles[1,0,x,y]==1 and particles[3,0,x,y]==1):
+                    particles[0,:,x,y]=np.copy(particles[1,:,x,y])
+                    particles[2,:,x,y]=np.copy(particles[3,:,x,y])
     
     newparticles = np.copy(particles)
     newphotons = np.copy(photons)
+    #Photon collision
+    for x in prange(w):
+        for y in prange(h):
+            for dir in range(4) :
+                antidir=(dir+2)%4
+                if(particles[dir,0,x,y]==1 
+                   and particles[antidir,0,x,y]==0
+                   and photons[antidir,x,y]==1):
+                    if(random.random()<col_prob):
+                        newparticles[dir,:,x,y]=0
+                        newparticles[antidir,0,x,y]=1
+                        newparticles[antidir,1,x,y]+=1 #Increase the energy by one
+                        newphotons[antidir,x,y]=0
     #Particle attraction (photon emission)
     #print('=================COLLISIONS===================')
+    particles=np.copy(newparticles)
+    photons=np.copy(newphotons)
+    partictot = particles[:,0].sum(axis=0) # (W,H)
+    particenergy = particles[:,1].sum(axis=0)
+
     for x in prange(w):
         for y in prange(h):
             loc = np.array([x,y])
             dirvec=np.zeros((2,))
             # Weighted direction vector
-            if(partictot[x,y]>0):
+            if(partictot[x,y]>0 and particenergy[x,y]>0):
                 #print(f'HIT ! There is  particle at : {x,y}')
                 for dir in range(4) :
                     newpos = (loc+dirdico[dir])%np.array([w,h])
@@ -116,28 +138,15 @@ def collision_cpu(particles :np.ndarray,photons,col_prob,emit_prob,w,h,dirdico):
                     #print(f'Considering collision for particle : {x,y} with {loc+dirdico[dirnum]}')
 
                     antidirnum = (dirnum+2)%4
-                    if(particles[antidirnum,x,y]==1 and random.random()<emit_prob):
-                        if(particles[dirnum,x,y]==0 and photons[antidirnum,x,y]==0):
+                    if(particles[antidirnum,0,x,y]==1 
+                       and random.random()<emit_prob 
+                       and particles[antidirnum,1,x,y]>0):
+                        if(particles[dirnum,0,x,y]==0 and photons[antidirnum,x,y]==0):
                             #print(f'I EMITTED :{x},{y}')
-                            newparticles[dirnum,x,y]=1
-                            newparticles[antidirnum,x,y]=0
+                            newparticles[dirnum,:,x,y]=np.copy(particles[dirnum,:,x,y])
+                            newparticles[dirnum,1,x,y]-=1
+                            newparticles[antidirnum,:,x,y]=0
                             newphotons[antidirnum,x,y]=1
-
-    particles=np.copy(newparticles)
-    photons=np.copy(newphotons)
-
-    #Photon collision
-    for x in prange(w):
-        for y in prange(h):
-            for dir in range(4) :
-                antidir=(dir+2)%4
-                if(particles[dir,x,y]==1 
-                   and particles[antidir,x,y]==0
-                   and photons[antidir,x,y]==1):
-                    if(random.random()<col_prob):
-                        newparticles[dir,x,y]=0
-                        newparticles[antidir,x,y]=1
-                        newphotons[antidir,x,y]=0
 
     return newparticles,newphotons
 
@@ -172,9 +181,13 @@ def propagation_cpu(particles,photons,w,h,dirdico):
             for dir in range(4):
                 newpos = (loc+dirdico[dir])%np.array([w,h])
                 newposphot = (loc+2*dirdico[dir])%np.array([w,h])
-                if(particles[dir][x,y]==1):
-                    newparticles[dir][newpos[0],newpos[1]]=1
-                if(photons[dir][x,y]==1):
+                if(particles[dir,0,x,y]==1):
+                    if(particles[dir,1,x,y]>0):
+                        newparticles[dir,0,newpos[0],newpos[1]]=particles[dir,0,x,y]
+                        newparticles[dir,1,newpos[0],newpos[1]]+=particles[dir,1,x,y]
+                    else :
+                        newparticles[dir,:,loc[0],loc[1]]=np.copy(particles[dir,:,x,y])
+                if(photons[dir,x,y]==1):
                     newphotons[dir][newposphot[0],newposphot[1]]=1
     
     return newparticles,newphotons
