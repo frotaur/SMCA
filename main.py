@@ -3,8 +3,8 @@ from Camera import Camera
 from Automaton import *
 
 pygame.init()
-W,H =300,300
-screen = pygame.display.set_mode((W,H))
+W,H =4,4
+screen = pygame.display.set_mode((W,H),flags=pygame.SCALED)
 clock = pygame.time.Clock()
 running = True
 camera = Camera(W,H)
@@ -38,6 +38,6 @@ while running:
     pygame.display.flip()
     # flip() the display to put your work on screen
 
-    clock.tick(30)  # limits FPS to 60
+    clock.tick(2)  # limits FPS to 60
 
 pygame.quit()

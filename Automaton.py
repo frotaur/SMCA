@@ -48,14 +48,17 @@ class SMCA(Automaton):
         # 0,1,2,3 are  N,O,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (5,W,H)
         self.photons = np.zeros_like(self.particles,dtype=np.int16)
-        self.particles = np.where(self.particles>0.9,1,0).astype(np.int16)
+        self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
         self.particles[:,100:190,40:60]=1
+        self.particles=np.zeros_like(self.particles)
+        self.particles[3,0,2] = 1
+        self.particles[1,3,2] = 1
 
 
         self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])
 
         self.emission_p = 1.
-        self.interaction_p = 0.6
+        self.interaction_p = .0
 
     def collision_step(self):
         self.particles,self.photons= \
@@ -73,21 +76,24 @@ class SMCA(Automaton):
         # self.collision_step()
         self.propagation_step()
         self.collision_step()
-        self._worldmap[:,:,2]=((self.particles.sum(axis=0)/4.))
-        self._worldmap[:,:,:2]=((self.photons.sum(axis=0)/4.))[:,:,None]
+        
+        
+        self._worldmap = np.zeros_like(self._worldmap)
+        self._worldmap[:,:,1]+=((self.particles.sum(axis=0)/2.))
+        self._worldmap[:,:,:2]+=((self.photons.sum(axis=0)/2.))[:,:,None]
 
-@njit(parallel=True)
-def collision_cpu(particles,photons,col_prob,emit_prob,w,h,dirdico):
+#@njit(parallel=True)
+def collision_cpu(particles :np.ndarray,photons,col_prob,emit_prob,w,h,dirdico):
     partictot = particles.sum(axis=0) # (W,H)
     
     # Particle collision
-    for x in prange(w):
-        for y in prange(h):
-            if(partictot[x,y]==2):
-                if(particles[0,x,y]==1 and particles[2,x,y]==1):
-                    particles[:,x,y]=np.array([0,1,0,1])
-                elif(particles[1,x,y]==1 and particles[3,x,y]==1):
-                    particles[:,x,y]=np.array([1,0,1,0])
+    # for x in prange(w):
+    #     for y in prange(h):
+    #         if(partictot[x,y]==2):
+    #             if(particles[0,x,y]==1 and particles[2,x,y]==1):
+    #                 particles[:,x,y]=np.array([0,1,0,1])
+    #             elif(particles[1,x,y]==1 and particles[3,x,y]==1):
+    #                 particles[:,x,y]=np.array([1,0,1,0])
     
     newparticles = np.copy(particles)
     newphotons = np.copy(photons)
@@ -97,21 +103,26 @@ def collision_cpu(particles,photons,col_prob,emit_prob,w,h,dirdico):
             loc = np.array([x,y])
             dirvec=np.zeros((2,))
             # Weighted direction vector
-            for dir in range(4) :
-                newpos = (loc+dirdico[dir])%np.array([w,h])
-                # Weighted direction vector
-                dirvec =dirvec+ dirdico[dir]*partictot[newpos[0],newpos[1]]
-            if((dirvec!=0).any()):
-                dirnum= get_dir_int(dirvec)#transform to int
-                antidirnum = (dirnum+2)%4
+            if(partictot[x,y]>0):
+                for dir in range(4) :
+                    newpos = (loc+dirdico[dir])%np.array([w,h])
+                    # Weighted direction vector
+                    dirvec =dirvec+ dirdico[dir]*partictot[newpos[0],newpos[1]]
 
-                if(particles[antidirnum,x,y]==1 and random.random()<emit_prob):
-                    if(particles[dirnum,x,y]==0 and photons[antidirnum,x,y]==0):
-                        newparticles[dirnum,x,y]=1
-                        newparticles[antidirnum,x,y]=0
-                        newphotons[antidirnum,x,y]=1
+                if((dirvec!=0).any()):
+                    dirnum= get_dir_int(dirvec)#transform to int
+                    print(f'Considering collision for particle : {x,y} with {loc+dirdico[dirnum]}')
+
+                    antidirnum = (dirnum+2)%4
+                    if(particles[antidirnum,x,y]==1 and random.random()<emit_prob):
+                        if(particles[dirnum,x,y]==0 and photons[antidirnum,x,y]==0):
+                            print(f'I EMITTED :{x},{y}')
+                            newparticles[dirnum,x,y]=1
+                            newparticles[antidirnum,x,y]=0
+                            newphotons[antidirnum,x,y]=1
     particles=np.copy(newparticles)
     photons=np.copy(newphotons)
+
     #Photon collision
     for x in prange(w):
         for y in prange(h):
@@ -134,13 +145,17 @@ def get_dir_int(dir_array):
     if(strength[0]>=strength[1]):
        #Its biased for now, if same strength should be random
        if(np.sign(strength[0])>0):
+           # (1,0)
            return 3
        else :
+           # (-1,0)
            return 1
     else :
         if(np.sign(strength[1])>0):
+            # (0,1)
             return 2
         else :
+            # (0,-1)
             return 0 
     
 @njit(parallel=True)
