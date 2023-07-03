@@ -13,16 +13,20 @@ world_state = np.random.randint(0,255,(W,H,3),dtype=np.uint8)
 
 auto = SMCA((W,H))
 
+updating = True
 while running:
     # poll for events
     # pygame.QUIT event means the user clicked X to close your window
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        if event.type == pygame.KEYDOWN:
+            if(event.key == pygame.K_p):
+                updating=not updating
         camera.handle_event(event)
     
-
-    auto.step()
+    if(updating):
+        auto.step()
     world_state = auto.worldmap
     surface = pygame.surfarray.make_surface(world_state)
 
