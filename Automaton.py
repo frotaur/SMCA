@@ -11,11 +11,11 @@ class Automaton :
         that makes one timestep of the evolution. By convention,
         and to keep in sync with pygame, the world tensor has shape
         (W,H,3). It contains float values between 0 and 1, which
-        are mapped to 0 255 when returning output, and describes how the
-        world is 'seen' by an observer.
+        are (automatically) mapped to 0 255 when returning output, 
+        and describes how the world is 'seen' by an observer.
 
         Parameters :
-        size : 2-uple
+        size : 2-uple (W,H)
             Shape of the CA world
         
     """
@@ -23,6 +23,8 @@ class Automaton :
     def __init__(self,size):
         self.w, self.h  = size
         self.size= size
+        # This self._worldmap should be changed in the step function.
+        # It should contains floats from 0 to 1 of RGB values.
         self._worldmap = np.random.uniform(size=(self.w,self.h,3))
     
 
@@ -45,27 +47,36 @@ class SMCA(Automaton):
 
     def __init__(self, size):
         super().__init__(size)
-        # 0,1,2,3 are  N,O,S,E directions
+        # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
         self.particles = np.where(self.particles>1.9,1,0).astype(np.int16)
         self.particles[:,100:190,40:60]=1
 
 
+        # Contains in arrays the direction North,West,South,East
         self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])
 
     def collision_step(self):
+        """
+            Does the collision step of the automaton
+        """
         self.particles= \
             collision_cpu(self.particles,self.w,self.h,self.dir)
         
 
     def propagation_step(self):
+        """
+            Does the propagation step of the automaton
+        """
         self.particles = \
             propagation_cpu(self.particles,self.w,self.h,self.dir)
         
         
                     
     def step(self):
-        # self.collision_step()
+        """
+            Steps the automaton state by one iteration.
+        """
         self.propagation_step()
         self.collision_step()
         
@@ -114,7 +125,7 @@ def propagation_cpu(particles,w,h,dirdico):
 @cuda.jit
 def propagation_cuda(partic_t1,partic_t2,dirvecs):
     """
-        Propagation step in cuda.
+        Propagation step in cuda. NOT YET WORKING
         Params : 
         partic_t1 : current state of the world
         partic_t2 : array of zeros, will be filled with the particles
