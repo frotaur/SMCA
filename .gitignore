@@ -7,3 +7,6 @@ __pycache__/
 .vscode
 
 .DS_Store
+
+# Virtual Environment
+venv SMCA/
