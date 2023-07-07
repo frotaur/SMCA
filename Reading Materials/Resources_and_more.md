@@ -1,4 +1,4 @@
-# This is a small list of neede resources for the project
+# This is a small list of needed resources for the project
 
 ## Numba
 First, [numba](https://numba.readthedocs.io/en/stable/user/5minguide.html). It allows to compile python code, and makes it faster by allowing it to be parallelized on the cpu (and CUDA gpu, but that's for later.). 
