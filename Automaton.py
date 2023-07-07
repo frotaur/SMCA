@@ -51,13 +51,13 @@ class SMCA(Automaton):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
-        self.particles = np.where(self.particles>1.9,1,0).astype(np.int16)
+        self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
         self.particles[:,100:190,40:60]=1
 
 
         # Contains in arrays the direction North,West,South,East
-        # self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])
-        self.dir = np.array([[0,-1],[1,0],[0,1],[-1,0]])
+        #self.dir = np.array([[0,1],[1,0],[0,-1],[-1,0]])
+        self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])
 
     def collision_step(self):
         """
@@ -92,25 +92,25 @@ class SMCA(Automaton):
 def collision_cpu(particles :np.ndarray,w,h,dirdico):
     partictot = particles[:].sum(axis=0) # (W,H)
     newparticles = np.copy(particles)
-    prob = np.array([1, 0.1, 0.1])
+    prob = np.array([1, 0, 0])
     # Particle collision
     for x in prange(w):
         for y in prange(h):
             if(partictot[x,y]==2):
                 if(particles[0,x,y]==1 and particles[2,x,y]==1):
-                    if(np.random.uniform()<=prob[particles[0,x,y-1] + particles[2,x,y+1]]):
-                        particles[1,x,y]=particles[0,x,y]
-                        particles[3,x,y]=particles[2,x,y]
-                        particles[0,x,y]=0
-                        particles[2,x,y]=0
+                    if(np.random.uniform()<=prob[particles[0,x,y+1] + particles[2,x,y-1]]):
+                        newparticles[1,x,y]=particles[0,x,y]
+                        newparticles[3,x,y]=particles[2,x,y]
+                        newparticles[0,x,y]=0
+                        newparticles[2,x,y]=0
                 elif(particles[1,x,y]==1 and particles[3,x,y]==1):
-                    if(np.random.uniform()<=prob[particles[1,x+1,y] + particles[3,x-1,y]]):
-                        particles[0,x,y]=particles[1,x,y]
-                        particles[2,x,y]=particles[3,x,y]
-                        particles[1,x,y]=0
-                        particles[3,x,y]=0
+                    if(np.random.uniform()<=prob[particles[3,x+1,y] + particles[1,x-1,y]]):
+                        newparticles[0,x,y]=particles[1,x,y]
+                        newparticles[2,x,y]=particles[3,x,y]
+                        newparticles[1,x,y]=0
+                        newparticles[3,x,y]=0
     
-    return particles
+    return newparticles
 
     
 @njit(parallel=True)
