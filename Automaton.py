@@ -51,7 +51,7 @@ class SMCA(Automaton):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
-        self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
+        self.particles = np.where(self.particles>2,1,0).astype(np.int16)
         self.particles[:,100:190,40:60]=1
 
 
@@ -91,24 +91,26 @@ class SMCA(Automaton):
 def collision_cpu(particles :np.ndarray,w,h,dirdico):
     partictot = particles[:].sum(axis=0) # (W,H)
     newparticles = np.copy(particles)
-    #prob array dictates the probability of collision. Each components of the prob is correspondent with a specific situation.
-    prob = np.array([1, 7/8, 6/8, 5/8, 4/8, 3/8, 2/8, 1/8, 0])
     # Particle collision
     for x in prange(w):
         for y in prange(h):
             if(partictot[x,y]==2):
+                coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y]
+                coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,y+1] + particles[2,x+1,y]
+                coherencyW = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,y+1] + particles[1,x+1,y]
+                coherencyE = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,y+1] + particles[3,x+1,y]
+                totaly = coherencyN - coherencyS
+                totalx = coherencyE - coherencyW
                 if(particles[0,x,y]==1 and particles[2,x,y]==1):
-                    coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y]
-                    coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,y+1] + particles[2,x+1,y]
-                    if(np.random.uniform() <= prob[coherencyN + coherencyS]):
+                    abscos = np.abs(totalx/np.sqrt(totalx**2+totaly**2))
+                    if(np.random.uniform() <= abscos):
                         newparticles[1,x,y]=particles[0,x,y]
                         newparticles[3,x,y]=particles[2,x,y]
                         newparticles[0,x,y]=0
                         newparticles[2,x,y]=0
                 elif(particles[1,x,y]==1 and particles[3,x,y]==1):
-                    coherencyW = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,y+1] + particles[1,x+1,y]
-                    coherencyE = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,y+1] + particles[3,x+1,y]
-                    if(np.random.uniform() <= prob[coherencyW + coherencyE]):
+                    abssin = np.abs(totaly/np.sqrt(totalx**2+totaly**2))
+                    if(np.random.uniform() <= abssin):
                         newparticles[0,x,y]=particles[1,x,y]
                         newparticles[2,x,y]=particles[3,x,y]
                         newparticles[1,x,y]=0
