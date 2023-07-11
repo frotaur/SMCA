@@ -91,6 +91,8 @@ class SMCA(Automaton):
 def collision_cpu(particles :np.ndarray,w,h,dirdico):
     partictot = particles[:].sum(axis=0) # (W,H)
     newparticles = np.copy(particles)
+    #natural selection parameter
+    n = 20
     # Particle collision
     for x in prange(w):
         for y in prange(h):
@@ -101,21 +103,27 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 coherencyE = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,y+1] + particles[3,x+1,y]
                 totaly = coherencyN - coherencyS
                 totalx = coherencyE - coherencyW
+                s = np.sqrt(totalx**2 + totaly**2)
+                #cross section 
+                sigma = s/(4*np.sqrt(2))
+
                 if(particles[0,x,y]==1 and particles[2,x,y]==1):
-                    abscos = np.abs(totalx/np.sqrt(totalx**2+totaly**2))
-                    if(np.random.uniform() <= abscos):
+                    p_x = (np.abs(totalx/s)**n)*sigma
+                    if(np.random.uniform() <= p_x):
                         newparticles[1,x,y]=particles[0,x,y]
                         newparticles[3,x,y]=particles[2,x,y]
                         newparticles[0,x,y]=0
                         newparticles[2,x,y]=0
                 elif(particles[1,x,y]==1 and particles[3,x,y]==1):
-                    abssin = np.abs(totaly/np.sqrt(totalx**2+totaly**2))
-                    if(np.random.uniform() <= abssin):
+                    p_y = (np.abs(totaly/s)**n)*sigma
+                    if(np.random.uniform() <= p_y):
                         newparticles[0,x,y]=particles[1,x,y]
                         newparticles[2,x,y]=particles[3,x,y]
                         newparticles[1,x,y]=0
                         newparticles[3,x,y]=0
-    
+            
+
+
     return newparticles
 
     
