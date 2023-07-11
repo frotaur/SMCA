@@ -51,8 +51,8 @@ class SMCA(Automaton):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
-        self.particles = np.where(self.particles>2,1,0).astype(np.int16)
-        self.particles[:,100:190,40:60]=1
+        self.particles = np.where(self.particles>1.7,1,0).astype(np.int16)
+        #self.particles[:,100:190,40:60]=1
 
 
         # Contains in arrays the direction North,West,South,East
