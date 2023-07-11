@@ -56,7 +56,6 @@ class SMCA(Automaton):
 
 
         # Contains in arrays the direction North,West,South,East
-        #self.dir = np.array([[0,1],[1,0],[0,-1],[-1,0]])
         self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])
 
     def collision_step(self):
@@ -92,19 +91,24 @@ class SMCA(Automaton):
 def collision_cpu(particles :np.ndarray,w,h,dirdico):
     partictot = particles[:].sum(axis=0) # (W,H)
     newparticles = np.copy(particles)
-    prob = np.array([1, 0, 0])
+    #prob array dictates the probability of collision. Each components of the prob is correspondent with a specific situation.
+    prob = np.array([1, 7/8, 6/8, 5/8, 4/8, 3/8, 2/8, 1/8, 0])
     # Particle collision
     for x in prange(w):
         for y in prange(h):
             if(partictot[x,y]==2):
                 if(particles[0,x,y]==1 and particles[2,x,y]==1):
-                    if(np.random.uniform()<=prob[particles[0,x,y+1] + particles[2,x,y-1]]):
+                    coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y]
+                    coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,y+1] + particles[2,x+1,y]
+                    if(np.random.uniform() <= prob[coherencyN + coherencyS]):
                         newparticles[1,x,y]=particles[0,x,y]
                         newparticles[3,x,y]=particles[2,x,y]
                         newparticles[0,x,y]=0
                         newparticles[2,x,y]=0
                 elif(particles[1,x,y]==1 and particles[3,x,y]==1):
-                    if(np.random.uniform()<=prob[particles[3,x+1,y] + particles[1,x-1,y]]):
+                    coherencyW = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,y+1] + particles[1,x+1,y]
+                    coherencyE = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,y+1] + particles[3,x+1,y]
+                    if(np.random.uniform() <= prob[coherencyW + coherencyE]):
                         newparticles[0,x,y]=particles[1,x,y]
                         newparticles[2,x,y]=particles[3,x,y]
                         newparticles[1,x,y]=0
