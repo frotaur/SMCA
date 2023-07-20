@@ -1,6 +1,7 @@
 import pygame
 from Camera import Camera
 from Automaton import *
+import cv2
 
 # Initialize the pygame screen 
 pygame.init()
@@ -17,6 +18,9 @@ world_state = np.random.randint(0,255,(W,H,3),dtype=np.uint8)
 auto = SMCA((W,H))
 
 updating = True
+recording = False
+launch_video = False
+
 while running:
     # poll for events
     # pygame.QUIT event means the user clicked X to close your window
@@ -27,6 +31,10 @@ while running:
         if event.type == pygame.KEYDOWN:
             if(event.key == pygame.K_p):
                 updating=not updating
+            if(event.key == pygame.K_r):
+                recording= not recording
+                if(not launch_video):
+                    launch_video=True
         # Handle the event loop for the camera
         camera.handle_event(event)
     
@@ -39,6 +47,17 @@ while running:
     #Make the viewable surface.
     surface = pygame.surfarray.make_surface(world_state)
 
+    #For recording
+    if(recording):
+        if(launch_video):
+            launch_video = False
+            fourcc = cv2.VideoWriter_fourcc(*'FFV1')
+            vid_loc = 'Videos/lgca1.mkv'
+            video_out = cv2.VideoWriter(vid_loc, fourcc, 30.0, (W, H))
+
+        frame_bgr = cv2.cvtColor(auto.worldmap, cv2.COLOR_RGB2BGR)
+        video_out.write(frame_bgr)
+        pygame.draw.circle(surface, (255,0,0), (W-10,H-10),2)
     # Clear the screen
     screen.fill((0, 0, 0))
 
@@ -53,4 +72,7 @@ while running:
 
     clock.tick(30)  # limits FPS to 60
 
+  
+
 pygame.quit()
+video_out.release()

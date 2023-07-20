@@ -24,7 +24,7 @@ class Automaton :
 
     def __init__(self,size):
         self.w, self.h  = size
-        self.size= size
+        self.size = size
         # This self._worldmap should be changed in the step function.
         # It should contains floats from 0 to 1 of RGB values.
         self._worldmap = np.random.uniform(size=(self.w,self.h,3))
@@ -51,7 +51,7 @@ class SMCA(Automaton):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
-        self.particles = np.where(self.particles>1.7,1,0).astype(np.int16)
+        self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
         #self.particles[:,100:190,40:60]=1
 
 
@@ -93,9 +93,11 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     newparticles = np.copy(particles)
     #natural selection parameter
     n = 20
+
     # Particle collision
     for x in prange(w):
         for y in prange(h):
+
             if(partictot[x,y]==2):
                 coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y]
                 coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,y+1] + particles[2,x+1,y]
@@ -108,15 +110,20 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 sigma = s/(4*np.sqrt(2))
 
                 if(particles[0,x,y]==1 and particles[2,x,y]==1):
-                    p_x = (np.abs(totalx/s)**n)*sigma
-                    if(np.random.uniform() <= p_x):
+                    #if s == 0 we can not defive cos and sin, so we eliminate this situation
+                    if s == 0:
+                        pass
+                    elif (np.random.uniform() <= (np.abs(totalx/s)**n)*sigma):
                         newparticles[1,x,y]=particles[0,x,y]
                         newparticles[3,x,y]=particles[2,x,y]
                         newparticles[0,x,y]=0
                         newparticles[2,x,y]=0
+
                 elif(particles[1,x,y]==1 and particles[3,x,y]==1):
-                    p_y = (np.abs(totaly/s)**n)*sigma
-                    if(np.random.uniform() <= p_y):
+                    #if s == 0 we can not defive cos and sin, so we eliminate this situation
+                    if s == 0:
+                        pass
+                    elif(np.random.uniform() <= (np.abs(totaly/s)**n)*sigma):
                         newparticles[0,x,y]=particles[1,x,y]
                         newparticles[2,x,y]=particles[3,x,y]
                         newparticles[1,x,y]=0
@@ -141,9 +148,20 @@ def propagation_cpu(particles,w,h,dirdico):
                 
     return newparticles
 
+
+
+
+
+
+
+
+
+
+
+"""
 @cuda.jit
 def propagation_cuda(partic_t1,partic_t2,dirvecs):
-    """
+    
         Propagation step in cuda. NOT YET WORKING
         Params : 
         partic_t1 : current state of the world
@@ -151,7 +169,7 @@ def propagation_cuda(partic_t1,partic_t2,dirvecs):
         dirvec : vector of directions
 
         TODO : share the memory of dirvecs
-    """
+    
     x,y = cuda.grid(2)
     if(x<partic_t1.shape[0] and y<partic_t1.shape[1]):
         loc = np.array([x,y])
@@ -159,3 +177,5 @@ def propagation_cuda(partic_t1,partic_t2,dirvecs):
             if(partic_t1[dir][x][y]==1):
                 newpos = (loc+dirvecs[dir])%np.array([w,h])
                 partic_t2[dir][newpos[0],newpos[1]]=1
+
+"""

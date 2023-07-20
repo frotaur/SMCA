@@ -10,3 +10,9 @@ __pycache__/
 
 # Virtual Environment
 venv_SMCA/
+
+#A folder for recording videos of the SMCA tests
+Videos
+
+#just a file to test the temporary things
+test.py
