@@ -98,37 +98,73 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     for x in prange(w):
         for y in prange(h):
             #stick interaction
+            # There is a huge gap between setting S >= 3 and S >= 2
             if (partictot[x,y] == 1):
 
                 #moving in N direction
                 if (particles[0,x,y] == 1):
                     S = particles[2,x-1,y-1] + particles[2,x,y-1] + particles[2,x+1,y-1]
-                    if (S == 3):
+                    W = particles[1,x-1,y-1] + particles[1,x,y-1] + particles[1,x+1,y-1]
+                    E = particles[3,x-1,y-1] + particles[3,x,y-1] + particles[3,x+1,y-1]
+                    
+                    # There is a huge difference between setting S >= 3 and S >= 2
+                    if (S >= 2):
                         newparticles[0,x,y] = 0
                         newparticles[2,x,y] = 1
-
+                    elif (W >= 2):
+                        newparticles[0,x,y] = 0
+                        newparticles[1,x,y] = 1
+                    elif (E >= 2):
+                        newparticles[0,x,y] = 0
+                        newparticles[3,x,y] = 1
 
                 #moving in W direction
                 elif (particles[1,x,y] == 1):
                     E = particles[3,x-1,y-1] + particles[3,x-1,y] + particles[3,x-1,y+1]
-                    if (E == 3):
+                    N = particles[0,x-1,y-1] + particles[0,x-1,y] + particles[0,x-1,y+1]
+                    S = particles[2,x-1,y-1] + particles[2,x-1,y] + particles[2,x-1,y+1]
+
+                    if (E >= 2):
                         newparticles[1,x,y] = 0
                         newparticles[3,x,y] = 1
+                    elif (N >= 2):
+                        newparticles[1,x,y] = 0
+                        newparticles[0,x,y] = 1
+                    elif (S >= 2):
+                        newparticles[1,x,y] = 0
+                        newparticles[2,x,y] = 1
 
                 #moving in S direction
                 elif (particles[2,x,y] == 1):
                     N = particles[0,x-1,y+1] + particles[0,x,y+1] + particles[0,x+1,y+1]
-                    if (N == 3):
+                    W = particles[1,x-1,y+1] + particles[1,x,y+1] + particles[1,x+1,y+1]
+                    E = particles[3,x-1,y+1] + particles[3,x,y+1] + particles[3,x+1,y+1]
+
+                    if (N >= 2):
                         newparticles[2,x,y] = 0
                         newparticles[0,x,y] = 1
+                    elif (W >= 2):
+                        newparticles[2,x,y] = 0
+                        newparticles[1,x,y] = 1
+                    elif (E >= 2):
+                        newparticles[2,x,y] = 0
+                        newparticles[3,x,y] = 1
 
                 #moving in E direction
                 elif (particles[3,x,y] == 1):
                     W = particles[1,x+1,y-1] + particles[1,x+1,y] + particles[1,x+1,y+1]
-                    if (W == 3):
+                    N = particles[0,x+1,y-1] + particles[0,x+1,y] + particles[0,x+1,y+1]
+                    S = particles[2,x+1,y-1] + particles[2,x+1,y] + particles[2,x+1,y+1]
+
+                    if (W >= 2):
                         newparticles[3,x,y] = 0
                         newparticles[1,x,y] = 1
-
+                    elif (N >= 2):
+                        newparticles[3,x,y] = 0
+                        newparticles[0,x,y] = 1
+                    elif (S >= 2):
+                        newparticles[3,x,y] = 0
+                        newparticles[2,x,y] = 1
 
             elif(partictot[x,y] == 2):
                 coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y]
