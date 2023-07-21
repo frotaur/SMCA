@@ -97,8 +97,40 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     # Particle collision
     for x in prange(w):
         for y in prange(h):
+            #stick interaction
+            if (partictot[x,y] == 1):
 
-            if(partictot[x,y]==2):
+                #moving in N direction
+                if (particles[0,x,y] == 1):
+                    S = particles[2,x-1,y-1] + particles[2,x,y-1] + particles[2,x+1,y-1]
+                    if (S == 3):
+                        newparticles[0,x,y] = 0
+                        newparticles[2,x,y] = 1
+
+
+                #moving in W direction
+                elif (particles[1,x,y] == 1):
+                    E = particles[3,x-1,y-1] + particles[3,x-1,y] + particles[3,x-1,y+1]
+                    if (E == 3):
+                        newparticles[1,x,y] = 0
+                        newparticles[3,x,y] = 1
+
+                #moving in S direction
+                elif (particles[2,x,y] == 1):
+                    N = particles[0,x-1,y+1] + particles[0,x,y+1] + particles[0,x+1,y+1]
+                    if (N == 3):
+                        newparticles[2,x,y] = 0
+                        newparticles[0,x,y] = 1
+
+                #moving in E direction
+                elif (particles[3,x,y] == 1):
+                    W = particles[1,x+1,y-1] + particles[1,x+1,y] + particles[1,x+1,y+1]
+                    if (W == 3):
+                        newparticles[3,x,y] = 0
+                        newparticles[1,x,y] = 1
+
+
+            elif(partictot[x,y] == 2):
                 coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y]
                 coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,y+1] + particles[2,x+1,y]
                 coherencyW = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,y+1] + particles[1,x+1,y]
