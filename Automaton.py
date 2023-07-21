@@ -94,7 +94,9 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     #natural selection parameter
     n = 20
     #probability of sticking
-    p = 0.5
+    p = 1
+    # The maximum possible value for the cross section
+    simga_max = 1
 
     # Particle collision
     for x in prange(w):
@@ -188,8 +190,10 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 totaly = coherencyN - coherencyS
                 totalx = coherencyE - coherencyW
                 s = np.sqrt(totalx**2 + totaly**2)
-                #cross section 
-                sigma = s/(4*np.sqrt(2))
+                #non-monotonic cross section 
+                sigma = simga_max*np.abs(np.sin((np.pi/(4*np.sqrt(2)))*s))**3
+                #monotonic cross section
+                #sigma = s/(4*np.sqrt(2))
 
                 if(particles[0,x,y]==1 and particles[2,x,y]==1):
                     #if s == 0 we can not defive cos and sin, so we eliminate this situation
