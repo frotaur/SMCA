@@ -17,6 +17,7 @@ world_state = np.random.randint(0,255,(W,H,3),dtype=np.uint8)
 
 # Initialize the automaton
 auto = SMCA((W,H))
+# auto = SMCA((W,H), False) # Disables clump counting
 
 updating = True
 recording = False

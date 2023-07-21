@@ -50,15 +50,14 @@ class SMCA(Automaton):
         Parameters :
         <put them as I go>
     """
-    STEPS = 20
-    step_count = 0
+    nsteps = 20
+    steps_cnt = 0
 
     def __init__(self, size, is_countinglumps = True):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
-        # self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
-        self.particles = np.where(self.particles>1.5,1,0).astype(np.uint8) # this is required by cv2.connectedComponentsWithStats
+        self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
         #self.particles[:,100:190,40:60]=1
         self.is_countinglumps = is_countinglumps
         if self.is_countinglumps:
@@ -87,7 +86,7 @@ class SMCA(Automaton):
         
     
     def count_lupms(self):
-        img = np.copy(self.particles)
+        img = np.copy(self.particles).astype(np.uint8) # this is required by cv2.connectedComponentsWithStats
         connectivity = 4 # Neighborhood connectivity (= 4 or 8)
         avg_lump_size = np.zeros((4,), dtype=float)
         for dir in prange(4):
@@ -112,8 +111,8 @@ class SMCA(Automaton):
         self._worldmap = np.zeros_like(self._worldmap) #(3,W,H)
         self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/4.))[:,:,None]
 
-        SMCA.step_count += 1
-        if (SMCA.step_count % SMCA.STEPS == 0 & self.is_countinglumps):
+        SMCA.steps_cnt += 1
+        if (SMCA.steps_cnt % SMCA.nsteps == 0 & self.is_countinglumps):
             self.count_lupms()
 
 
