@@ -99,8 +99,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     # Particle collision
     for x in prange(w):
         for y in prange(h):
-            #stick interaction
-            # There is a huge gap between setting S >= 3 and S >= 2
+            #one-particle sticking interaction
             if (partictot[x,y] == 1):
 
                 #moving in N direction
@@ -180,6 +179,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                             newparticles[3,x,y] = 0
                             newparticles[2,x,y] = 1
 
+            #two-particle scattering interaction
             elif(partictot[x,y] == 2):
                 coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y]
                 coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,y+1] + particles[2,x+1,y]
