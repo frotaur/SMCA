@@ -2,6 +2,10 @@ import numpy as np
 from numba import njit, prange,cuda 
 import numba.typed as numt
 import random
+import cv2
+import csv
+import datetime
+import sys
 
 
 class Automaton :
@@ -46,13 +50,21 @@ class SMCA(Automaton):
         Parameters :
         <put them as I go>
     """
+    STEPS = 20
+    step_count = 0
 
-    def __init__(self, size):
+    def __init__(self, size, is_countinglumps = True):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
-        self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
+        # self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
+        self.particles = np.where(self.particles>1.5,1,0).astype(np.uint8) # this is required by cv2.connectedComponentsWithStats
         #self.particles[:,100:190,40:60]=1
+        self.is_countinglumps = is_countinglumps
+        if self.is_countinglumps:
+            self.filename = "output_" + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".csv"
+            with open(self.filename, 'x') as file:
+                pass
 
 
         # Contains in arrays the direction North,West,South,East
@@ -73,8 +85,23 @@ class SMCA(Automaton):
         self.particles = \
             propagation_cpu(self.particles,self.w,self.h,self.dir)
         
-        
-                    
+    
+    def count_lupms(self):
+        img = np.copy(self.particles)
+        connectivity = 4 # Neighborhood connectivity (= 4 or 8)
+        avg_lump_size = np.zeros((4,), dtype=float)
+        for dir in prange(4):
+            (num_labels, labeled_img, stat_values, centroid) = \
+                cv2.connectedComponentsWithStats(img[dir], connectivity, cv2.CV_32S)
+            for i in range(1, num_labels):
+                avg_lump_size[dir] += stat_values[i, cv2.CC_STAT_AREA] # Area of each lump
+            avg_lump_size[dir] /= num_labels
+
+        with open(self.filename, 'a', encoding='UTF8', newline='') as f:
+            csv.writer(f).writerow(avg_lump_size)
+            csv.writer(sys.stdout).writerow(avg_lump_size)
+            
+
     def step(self):
         """
             Steps the automaton state by one iteration.
@@ -82,9 +109,12 @@ class SMCA(Automaton):
         self.propagation_step()
         self.collision_step()
         
-        
         self._worldmap = np.zeros_like(self._worldmap) #(3,W,H)
         self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/4.))[:,:,None]
+
+        SMCA.step_count += 1
+        if (SMCA.step_count % SMCA.STEPS == 0 & self.is_countinglumps):
+            self.count_lupms()
 
 
 @njit(parallel=True)
@@ -93,11 +123,9 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     newparticles = np.copy(particles)
     #natural selection parameter
     n = 20
-
     # Particle collision
     for x in prange(w):
         for y in prange(h):
-
             if(partictot[x,y]==2):
                 coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y]
                 coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,y+1] + particles[2,x+1,y]
@@ -118,7 +146,6 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                         newparticles[3,x,y]=particles[2,x,y]
                         newparticles[0,x,y]=0
                         newparticles[2,x,y]=0
-
                 elif(particles[1,x,y]==1 and particles[3,x,y]==1):
                     #if s == 0 we can not defive cos and sin, so we eliminate this situation
                     if s == 0:

@@ -2,6 +2,7 @@ import pygame
 from Camera import Camera
 from Automaton import *
 import cv2
+import os
 
 # Initialize the pygame screen 
 pygame.init()
@@ -20,6 +21,8 @@ auto = SMCA((W,H))
 updating = True
 recording = False
 launch_video = False
+
+os.system('CLS')
 
 while running:
     # poll for events
