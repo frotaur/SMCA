@@ -93,6 +93,8 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     newparticles = np.copy(particles)
     #natural selection parameter
     n = 20
+    #probability of sticking
+    p = 0.5
 
     # Particle collision
     for x in prange(w):
@@ -109,14 +111,17 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                     
                     # There is a huge difference between setting S >= 3 and S >= 2
                     if (S >= 2):
-                        newparticles[0,x,y] = 0
-                        newparticles[2,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[0,x,y] = 0
+                            newparticles[2,x,y] = 1
                     elif (W >= 2):
-                        newparticles[0,x,y] = 0
-                        newparticles[1,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[0,x,y] = 0
+                            newparticles[1,x,y] = 1
                     elif (E >= 2):
-                        newparticles[0,x,y] = 0
-                        newparticles[3,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[0,x,y] = 0
+                            newparticles[3,x,y] = 1
 
                 #moving in W direction
                 elif (particles[1,x,y] == 1):
@@ -125,14 +130,17 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                     S = particles[2,x-1,y-1] + particles[2,x-1,y] + particles[2,x-1,y+1]
 
                     if (E >= 2):
-                        newparticles[1,x,y] = 0
-                        newparticles[3,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[1,x,y] = 0
+                            newparticles[3,x,y] = 1
                     elif (N >= 2):
-                        newparticles[1,x,y] = 0
-                        newparticles[0,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[1,x,y] = 0
+                            newparticles[0,x,y] = 1
                     elif (S >= 2):
-                        newparticles[1,x,y] = 0
-                        newparticles[2,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[1,x,y] = 0
+                            newparticles[2,x,y] = 1
 
                 #moving in S direction
                 elif (particles[2,x,y] == 1):
@@ -141,14 +149,17 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                     E = particles[3,x-1,y+1] + particles[3,x,y+1] + particles[3,x+1,y+1]
 
                     if (N >= 2):
-                        newparticles[2,x,y] = 0
-                        newparticles[0,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[2,x,y] = 0
+                            newparticles[0,x,y] = 1
                     elif (W >= 2):
-                        newparticles[2,x,y] = 0
-                        newparticles[1,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[2,x,y] = 0
+                            newparticles[1,x,y] = 1
                     elif (E >= 2):
-                        newparticles[2,x,y] = 0
-                        newparticles[3,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[2,x,y] = 0
+                            newparticles[3,x,y] = 1
 
                 #moving in E direction
                 elif (particles[3,x,y] == 1):
@@ -157,14 +168,17 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                     S = particles[2,x+1,y-1] + particles[2,x+1,y] + particles[2,x+1,y+1]
 
                     if (W >= 2):
-                        newparticles[3,x,y] = 0
-                        newparticles[1,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[3,x,y] = 0
+                            newparticles[1,x,y] = 1
                     elif (N >= 2):
-                        newparticles[3,x,y] = 0
-                        newparticles[0,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[3,x,y] = 0
+                            newparticles[0,x,y] = 1
                     elif (S >= 2):
-                        newparticles[3,x,y] = 0
-                        newparticles[2,x,y] = 1
+                        if np.random.uniform() <= p:
+                            newparticles[3,x,y] = 0
+                            newparticles[2,x,y] = 1
 
             elif(partictot[x,y] == 2):
                 coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y]
