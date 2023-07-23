@@ -6,7 +6,8 @@ import cv2
 import csv
 import datetime
 import sys
-
+import time
+import concurrent.futures
 
 class Automaton :
     """
@@ -24,8 +25,6 @@ class Automaton :
         
     """
 
-    
-
     def __init__(self,size):
         self.w, self.h  = size
         self.size = size
@@ -42,7 +41,6 @@ class Automaton :
         return (255*self._worldmap).astype(dtype=np.uint8)
 
 
-
 class SMCA(Automaton):
     """
         Standard Model Cellular Automaton. Inspired by LGCA.
@@ -51,7 +49,6 @@ class SMCA(Automaton):
         <put them as I go>
     """
     nsteps = 20
-    steps_cnt = 0
 
     def __init__(self, size, is_countinglumps = True):
         super().__init__(size)
@@ -61,6 +58,8 @@ class SMCA(Automaton):
         #self.particles[:,100:190,40:60]=1
         self.is_countinglumps = is_countinglumps
         if self.is_countinglumps:
+            self.steps_cnt = 0
+            self.steps_time = time.time()
             self.filename = "output_" + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".csv"
             with open(self.filename, 'x') as file:
                 pass
@@ -68,6 +67,9 @@ class SMCA(Automaton):
 
         # Contains in arrays the direction North,West,South,East
         self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])
+        
+        # Contains np.roll(,•,•) input for North,West,South,East
+        self.rollinput = np.array([[-1,0],[-1,1],[1,0],[1,1]])
 
     def collision_step(self):
         """
@@ -75,45 +77,67 @@ class SMCA(Automaton):
         """
         self.particles= \
             collision_cpu(self.particles,self.w,self.h,self.dir)
-        
 
     def propagation_step(self):
         """
             Does the propagation step of the automaton
         """
-        self.particles = \
-            propagation_cpu(self.particles,self.w,self.h,self.dir)
+        # self.particles = \
+        #     propagation_cpu(self.particles,self.w,self.h,self.dir)
+        
+        self.propagation_step_v2()
         
     
+    def propagation_step_v2(self):
+        for i in prange(4):
+            self.particles[i, :, :] = np.roll(self.particles[i, :, :], self.rollinput[i, 0], self.rollinput[i, 1])
+
+
     def count_lupms(self):
         img = np.copy(self.particles).astype(np.uint8) # this is required by cv2.connectedComponentsWithStats
         connectivity = 4 # Neighborhood connectivity (= 4 or 8)
         avg_lump_size = np.zeros((4,), dtype=float)
-        for dir in prange(4):
-            (num_labels, labeled_img, stat_values, centroid) = \
-                cv2.connectedComponentsWithStats(img[dir], connectivity, cv2.CV_32S)
-            for i in range(1, num_labels):
-                avg_lump_size[dir] += stat_values[i, cv2.CC_STAT_AREA] # Area of each lump
-            avg_lump_size[dir] /= num_labels
 
+        with concurrent.futures.ThreadPoolExecutor(4) as executor:
+            avg_lump_size = list(executor.map(count_lupms_aux, self.particles[[0,1,2,3],:,:]))
+
+        csv.writer(sys.stdout).writerow(avg_lump_size)        
         with open(self.filename, 'a', encoding='UTF8', newline='') as f:
             csv.writer(f).writerow(avg_lump_size)
-            csv.writer(sys.stdout).writerow(avg_lump_size)
-            
+
 
     def step(self):
         """
             Steps the automaton state by one iteration.
         """
+        tp = time.time()
         self.propagation_step()
+        tp = time.time() - tp
+        tc = time.time()
         self.collision_step()
-        
+        tc = time.time() - tc
+        tl = time.time()
+        if (self.steps_cnt % SMCA.nsteps == 0 & self.is_countinglumps):
+            self.count_lupms()
+            tl = time.time() - tl
+            print("Step # \t\t= " + str(self.steps_cnt))
+            print("Elapsed time \t= " + str(time.time() - self.steps_time))
+            print("Propagation time \t= " + str(tp))
+            print("Collision time \t\t= " + str(tc))
+            print("Lump calc time \t\t= " + str(tl))
+        self.steps_cnt += 1
         self._worldmap = np.zeros_like(self._worldmap) #(3,W,H)
         self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/4.))[:,:,None]
 
-        SMCA.steps_cnt += 1
-        if (SMCA.steps_cnt % SMCA.nsteps == 0 & self.is_countinglumps):
-            self.count_lupms()
+
+def count_lupms_aux(colinear_particles):
+    img = np.copy(colinear_particles).astype(np.uint8) # this is required by cv2.connectedComponentsWithStats
+    connectivity = 4 # Neighborhood connectivity (= 4 or 8)
+    avg_lump_size = 0
+    (num_labels, labeled_img, stat_values, centroid) = \
+        cv2.connectedComponentsWithStats(img, connectivity, cv2.CV_32S)
+    # TODO : double-check OpenCV doc re. index range 1:num_labels
+    return stat_values[1:num_labels, cv2.CC_STAT_AREA].sum() / num_labels
 
 
 @njit(parallel=True)
@@ -154,8 +178,6 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                         newparticles[2,x,y]=particles[3,x,y]
                         newparticles[1,x,y]=0
                         newparticles[3,x,y]=0
-            
-
 
     return newparticles
 
@@ -163,7 +185,6 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
 @njit(parallel=True)
 def propagation_cpu(particles,w,h,dirdico):
     newparticles=np.zeros_like(particles)
-
     for x in prange(w):
         for y in prange(h):
             loc = np.array([x,y])
@@ -173,15 +194,6 @@ def propagation_cpu(particles,w,h,dirdico):
                     newparticles[dir,newpos[0],newpos[1]]=particles[dir,x,y]
                 
     return newparticles
-
-
-
-
-
-
-
-
-
 
 
 """

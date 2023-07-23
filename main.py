@@ -6,7 +6,7 @@ import os
 
 # Initialize the pygame screen 
 pygame.init()
-W,H =300,300
+W,H =1700,900
 screen = pygame.display.set_mode((W,H),flags=pygame.SCALED|pygame.RESIZABLE)
 clock = pygame.time.Clock()
 running = True
