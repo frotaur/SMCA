@@ -50,6 +50,7 @@ class SMCA(Automaton):
     def __init__(self, size):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
+<<<<<<< Updated upstream
         # Generate random values for self.particles
         self.particles = np.random.randn(4, self.w, self.h)
 
@@ -58,6 +59,14 @@ class SMCA(Automaton):
 
         # Apply thresholds for each layer
         self.particles = np.where(self.particles > thresholds[:, np.newaxis, np.newaxis], 1, 0).astype(np.int16)
+=======
+        self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
+        self.particles = np.where(self.particles>1.9,1,0).astype(np.int16)
+
+        # self.particles = np.zeros((4,self.w,self.h),dtype=np.int16)
+        # self.particles[3,0,self.h//2]=1
+        # self.particles[1,self.w-1,self.h//2-1:self.h//2+2]=1
+>>>>>>> Stashed changes
         # self.particles[:,100:190,40:60]=1
 
 
@@ -73,7 +82,7 @@ class SMCA(Automaton):
             Does the collision step of the automaton
         """
         self.particles= \
-            collision_cpu(self.particles,self.w,self.h,self.dir)
+            collision_cpu(self.particles,self.w,self.h)
         
 
     def propagation_step(self):
@@ -92,164 +101,105 @@ class SMCA(Automaton):
         self.propagation_step()
         self.collision_step()
         
-        
         self._worldmap = np.zeros_like(self._worldmap) #(3,W,H)
         self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/4.))[:,:,None]
 
 
 # ! There is definitely an asymmetry in the code. Someimes alone particles do not stick properly. At the end, usually north and south particles remain.
 @njit(parallel=True)
-def collision_cpu(particles :np.ndarray,w,h,dirdico):
-    partictot = particles[:].sum(axis=0) # (W,H)
+def collision_cpu(particles :np.ndarray,w,h):
+    partictot = particles.sum(axis=0) # (W,H)
     newparticles = np.copy(particles)
-    #natural selection parameter
-    n = 10
-    #probability of sticking
-    p = 1
+
 
     # Particle collision
     for x in prange(w):
         for y in prange(h):
             #one-particle sticking interaction
             if (partictot[x,y] == 1):
-                #moving in N direction
-                if (particles[0,x,y] == 1):
-                    S = particles[2,x-1,y-1] + particles[2,x,y-1] + particles[2,x+1,y-1]
-                    W = particles[1,x-1,y-1] + particles[1,x,y-1] + particles[1,x+1,y-1]
-                    E = particles[3,x-1,y-1] + particles[3,x,y-1] + particles[3,x+1,y-1]
-                    N = 0
+                # North :
+                if(particles[0,x,y]==1):
+                    ycheck =  (y-1)%h
+                    S =0
+                    W =0
+                    E =0
+                    for xcheck in [(x-1)%w,x%w,(x+1)%w]:
+                        S += particles[2,xcheck,ycheck]
+                        W += particles[1,xcheck,ycheck]
+                        E += particles[3,xcheck,ycheck]
+                    
+                    count2 = [S>=2, W>=2, E>=2]
+                    pos2 = [2, 1, 3]
+                    if(sum(count2)==1):# Exactly one is bigger or equaL than two
+                        for i in range(3):
+                            if(count2[i]):
+                                newparticles[0,x,y]=0
+                                newparticles[pos2[i],x,y]=1
+                # South :
+                elif(particles[2,x,y]==1):
+                    ycheck =  (y+1)%h
+                    N =0
+                    W =0
+                    E =0
+                    for xcheck in [(x-1)%w,x%w,(x+1)%w]:
+                        N += particles[0,xcheck,ycheck]
+                        W += particles[1,xcheck,ycheck]
+                        E += particles[3,xcheck,ycheck]
+                    
+                    count2 = [N>=2, W>=2, E>=2]
+                    pos2 = [0, 1, 3]
+                    if(sum(count2)==1):# Exactly one is bigger or equaL than two
+                        for i in range(3):
+                            if(count2[i]):
+                                newparticles[2,x,y]=0
+                                newparticles[pos2[i],x,y]=1
+                # West :
+                elif(particles[1,x,y]==1):
+                    xcheck = (x-1)%w
+                    N =0
+                    S =0
+                    E =0
+                    for ycheck in [(y-1)%h,y%h,(y+1)%h]:
+                        N += particles[0,xcheck,ycheck]
+                        S += particles[2,xcheck,ycheck]
+                        E += particles[3,xcheck,ycheck]
+                    
+                    count2 = [N>=2, S>=2, E>=2]
+                    pos2 = [0, 2, 3]
+                    if(sum(count2)==1):# Exactly one is bigger or equaL than two
+                        for i in range(3):
+                            if(count2[i]):
+                                newparticles[1,x,y]=0
+                                newparticles[pos2[i],x,y]=1
+                # East :
+                elif(particles[3,x,y]==1):
+                    # print('checking : ', x,y)
+                    # print('Westbois :', particles[1,x])
+                    xcheck = (x+1)%w
+                    N=0
+                    S =0
+                    W=0
+                    for ycheck in [(y-1)%h,y%h,(y+1)%h]:
+                        N+= particles[0,xcheck,ycheck]
+                        S += particles[2,xcheck,ycheck]
+                        W+= particles[1,xcheck,ycheck]
+                    #     print('WESTADD :', particles[1,xcheck,ycheck])
+                    # print('WESTBOIS : ', W_4)
+        
+                    count2 = [N>=2, S>=2, W>=2]
+                    pos2 = [0, 2, 1]
 
-                    if (S >= 2 and W < 2 and E < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[0,x,y]==1
-                            assert newparticles[2,x,y]==0
-                            newparticles[0,x,y] = 0
-                            newparticles[2,x,y] = 1
-                    elif (W >= 2 and S < 2 and E < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[0,x,y]==1
-                            assert newparticles[1,x,y]==0
-                            newparticles[0,x,y] = 0
-                            newparticles[1,x,y] = 1
-                    elif (E >= 2 and S < 2 and W < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[0,x,y]==1
-                            assert newparticles[3,x,y]==0
-                            newparticles[0,x,y] = 0
-                            newparticles[3,x,y] = 1
-                #moving in S direction
-                elif (particles[2,x,y] == 1):
-                    N = particles[0,x-1,y+1] + particles[0,x,y+1] + particles[0,x+1,y+1]
-                    W = particles[1,x-1,y+1] + particles[1,x,y+1] + particles[1,x+1,y+1]
-                    E = particles[3,x-1,y+1] + particles[3,x,y+1] + particles[3,x+1,y+1]
-                    S = 0
-                    if (N >= 2 and W < 2 and E < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[0,x,y]==0
-                            assert newparticles[2,x,y]==1
-                            newparticles[2,x,y] = 0
-                            newparticles[0,x,y] = 1
-                    elif (W >= 2 and N < 2 and E < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[2,x,y]==1
-                            assert newparticles[1,x,y]==0
-                            newparticles[2,x,y] = 0
-                            newparticles[1,x,y] = 1
-                    elif (E >= 2 and N < 2 and W < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[2,x,y]==1
-                            assert newparticles[3,x,y]==0
-                            newparticles[2,x,y] = 0
-                            newparticles[3,x,y] = 1
-                # Moving in west direction
-                elif (particles[1,x,y] == 1):
-                    E = particles[3,x-1,y-1] + particles[3,x-1,y] + particles[3,x-1,y+1]
-                    N = particles[0,x-1,y-1] + particles[0,x-1,y] + particles[0,x-1,y+1]
-                    S = particles[2,x-1,y-1] + particles[2,x-1,y] + particles[2,x-1,y+1]
-                    W = 0
+                    if(sum(count2)==1):# Exactly one is bigger or equaL than two
+                        # print("ALARMS BLAZING")
 
-                    if (E >= 2 and N < 2 and S < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[1,x,y]==1
-                            assert newparticles[3,x,y]==0
-                            newparticles[1,x,y] = 0
-                            newparticles[3,x,y] = 1
-                    elif (N >= 2 and E < 2 and S < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[1,x,y]==1
-                            assert newparticles[0,x,y]==0
-                            newparticles[1,x,y] = 0
-                            newparticles[0,x,y] = 1
-                    elif (S >= 2 and E < 2 and N < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[1,x,y]==1
-                            assert newparticles[2,x,y]==0
-                            newparticles[1,x,y] = 0
-                            newparticles[2,x,y] = 1
-
-                #moving in E direction
-                elif (particles[3,x,y] == 1):
-                    W = particles[1,x+1,y-1] + particles[1,x+1,y] + particles[1,x+1,y+1]
-                    N = particles[0,x+1,y-1] + particles[0,x+1,y] + particles[0,x+1,y+1]
-                    S = particles[2,x+1,y-1] + particles[2,x+1,y] + particles[2,x+1,y+1]
-                    E = 0
-                    if (W >= 2 and N < 2 and S < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[3,x,y]==1
-                            assert newparticles[1,x,y]==0
-                            newparticles[3,x,y] = 0
-                            newparticles[1,x,y] = 1
-                    elif (N >= 2 and W < 2 and S < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[3,x,y]==1
-                            assert newparticles[0,x,y]==0
-                            newparticles[3,x,y] = 0
-                            newparticles[0,x,y] = 1
-                    elif (S >= 2 and W < 2 and N < 2):
-                        if np.random.uniform() <= p:
-                            assert newparticles[3,x,y]==1
-                            assert newparticles[2,x,y]==0
-                            newparticles[3,x,y] = 0
-                            newparticles[2,x,y] = 1
-
-                #moving in W direction
-
-            #two-particle scattering interaction
-            # elif(partictot[x,y] == 2):
-            #     coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y] \
-            #     + particles[0,x-1,y-1] + particles[0,x-1,y+1] + particles[0,x+1,y-1] + particles[0,x+1,y+1]
-            #     coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,y+1] + particles[2,x+1,y] \
-            #     + particles[2,x-1,y-1] + particles[2,x-1,y+1] + particles[2,x+1,y-1] + particles[2,x+1,y+1]
-            #     coherencyW = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,y+1] + particles[1,x+1,y] \
-            #     + particles[1,x-1,y-1] + particles[1,x-1,y+1] + particles[1,x+1,y-1] + particles[1,x+1,y+1]
-            #     coherencyE = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,y+1] + particles[3,x+1,y] \
-            #     + particles[3,x-1,y-1] + particles[3,x-1,y+1] + particles[3,x+1,y-1] + particles[3,x+1,y+1]
-            #     totaly = coherencyN - coherencyS
-            #     totalx = coherencyE - coherencyW
-            #     s = np.sqrt(totalx**2 + totaly**2)
-            #     #Normalized cross section
-            #     sigma = s/(4*np.sqrt(2))
-
-            #     if(particles[0,x,y]==1 and particles[2,x,y]==1):
-            #         #if s == 0 we can not define cos and sin, so we eliminate this situation
-            #         if s == 0:
-            #             pass
-            #         elif (np.random.uniform() <= (np.abs(totalx/s)**n)*sigma):
-            #             newparticles[1,x,y]=particles[0,x,y]
-            #             newparticles[3,x,y]=particles[2,x,y]
-            #             newparticles[0,x,y]=0
-            #             newparticles[2,x,y]=0
-
-            #     elif(particles[1,x,y]==1 and particles[3,x,y]==1):
-            #         #if s == 0 we can not define cos and sin, so we eliminate this situation
-            #         if s == 0:
-            #             pass
-            #         elif(np.random.uniform() <= (np.abs(totaly/s)**n)*sigma):
-            #             newparticles[0,x,y]=particles[1,x,y]
-            #             newparticles[2,x,y]=particles[3,x,y]
-            #             newparticles[1,x,y]=0
-            #             newparticles[3,x,y]=0
-            
+                        for i in range(3):
+                            if(count2[i]):
+                                newparticles[3,x,y]=0
+                                newparticles[pos2[i],x,y]=1
+                else :
+                    raise Exception("WHAT DO YOU MEAN ????")
+                    
+                
 
 
     return newparticles

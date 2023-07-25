@@ -5,7 +5,7 @@ import cv2
 
 # Initialize the pygame screen 
 pygame.init()
-W,H = 300,300
+W,H = 200,200
 screen = pygame.display.set_mode((W,H),flags=pygame.SCALED|pygame.RESIZABLE)
 clock = pygame.time.Clock()
 running = True
@@ -70,7 +70,7 @@ while running:
     pygame.display.flip()
     # flip() the display to put your work on screen
 
-    clock.tick(60)  # limits FPS to 60
+    clock.tick(120)  # limits FPS to 60
 
   
 
