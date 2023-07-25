@@ -51,8 +51,9 @@ class SMCA(Automaton):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
-        self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
-        #self.particles[:,100:190,40:60]=1
+        self.particles = np.where(self.particles>1.9,1,0).astype(np.int16)
+        self.particles[:,100:190,40:60]=1
+
 
 
         # Contains in arrays the direction North,West,South,East
@@ -87,12 +88,13 @@ class SMCA(Automaton):
         self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/4.))[:,:,None]
 
 
-@njit(parallel=True)
+# ! There is definitely an asymmetry in the code. Someimes alone particles do not stick properly. At the end, usually north and south particles remain.
+@njit(parallel=False)
 def collision_cpu(particles :np.ndarray,w,h,dirdico):
     partictot = particles[:].sum(axis=0) # (W,H)
     newparticles = np.copy(particles)
     #natural selection parameter
-    n = 20
+    n = 10
     #probability of sticking
     p = 1
     # The maximum possible value for the cross section
@@ -111,15 +113,15 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                     E = particles[3,x-1,y-1] + particles[3,x,y-1] + particles[3,x+1,y-1]
                     
                     # There is a huge difference between setting S >= 3 and S >= 2
-                    if (S >= 2):
+                    if (S >= 2 and W < 2 and E < 2):
                         if np.random.uniform() <= p:
                             newparticles[0,x,y] = 0
                             newparticles[2,x,y] = 1
-                    elif (W >= 2):
+                    elif (W >= 2 and S < 2 and E < 2):
                         if np.random.uniform() <= p:
                             newparticles[0,x,y] = 0
                             newparticles[1,x,y] = 1
-                    elif (E >= 2):
+                    elif (E >= 2 and S < 2 and W < 2):
                         if np.random.uniform() <= p:
                             newparticles[0,x,y] = 0
                             newparticles[3,x,y] = 1
@@ -130,15 +132,15 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                     N = particles[0,x-1,y-1] + particles[0,x-1,y] + particles[0,x-1,y+1]
                     S = particles[2,x-1,y-1] + particles[2,x-1,y] + particles[2,x-1,y+1]
 
-                    if (E >= 2):
+                    if (E >= 2 and N < 2 and S < 2):
                         if np.random.uniform() <= p:
                             newparticles[1,x,y] = 0
                             newparticles[3,x,y] = 1
-                    elif (N >= 2):
+                    elif (N >= 2 and E < 2 and S < 2):
                         if np.random.uniform() <= p:
                             newparticles[1,x,y] = 0
                             newparticles[0,x,y] = 1
-                    elif (S >= 2):
+                    elif (S >= 2 and E < 2 and N < 2):
                         if np.random.uniform() <= p:
                             newparticles[1,x,y] = 0
                             newparticles[2,x,y] = 1
@@ -149,15 +151,15 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                     W = particles[1,x-1,y+1] + particles[1,x,y+1] + particles[1,x+1,y+1]
                     E = particles[3,x-1,y+1] + particles[3,x,y+1] + particles[3,x+1,y+1]
 
-                    if (N >= 2):
+                    if (N >= 2 and W < 2 and E < 2):
                         if np.random.uniform() <= p:
                             newparticles[2,x,y] = 0
                             newparticles[0,x,y] = 1
-                    elif (W >= 2):
+                    elif (W >= 2 and N < 2 and E < 2):
                         if np.random.uniform() <= p:
                             newparticles[2,x,y] = 0
                             newparticles[1,x,y] = 1
-                    elif (E >= 2):
+                    elif (E >= 2 and N < 2 and W < 2):
                         if np.random.uniform() <= p:
                             newparticles[2,x,y] = 0
                             newparticles[3,x,y] = 1
@@ -168,15 +170,15 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                     N = particles[0,x+1,y-1] + particles[0,x+1,y] + particles[0,x+1,y+1]
                     S = particles[2,x+1,y-1] + particles[2,x+1,y] + particles[2,x+1,y+1]
 
-                    if (W >= 2):
+                    if (W >= 2 and N < 2 and S < 2):
                         if np.random.uniform() <= p:
                             newparticles[3,x,y] = 0
                             newparticles[1,x,y] = 1
-                    elif (N >= 2):
+                    elif (N >= 2 and W < 2 and S < 2):
                         if np.random.uniform() <= p:
                             newparticles[3,x,y] = 0
                             newparticles[0,x,y] = 1
-                    elif (S >= 2):
+                    elif (S >= 2 and W < 2 and N < 2):
                         if np.random.uniform() <= p:
                             newparticles[3,x,y] = 0
                             newparticles[2,x,y] = 1
@@ -220,7 +222,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     return newparticles
 
     
-@njit(parallel=True)
+@njit(parallel=False)
 def propagation_cpu(particles,w,h,dirdico):
     newparticles=np.zeros_like(particles)
 
