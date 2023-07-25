@@ -59,10 +59,11 @@ class SMCA(Automaton):
         #self.particles[:,100:190,40:60]=1
         self.is_countinglumps = is_countinglumps
         self.steps_cnt = 0
+        self.relative_path = "./CSV/"
         if self.is_countinglumps:
             self.filename_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-            self.filename_avglumpsize = self.filename_timestamp + "_avglumpsize.csv"
-            self.filename_lumpsizehist = self.filename_timestamp + "_lumpsizehistogram.csv"
+            self.filename_avglumpsize = self.relative_path + self.filename_timestamp + "_avglumpsize.csv"
+            self.filename_lumpsizehist = self.relative_path + self.filename_timestamp + "_lumpsizehistogram.csv"
             with open(self.filename_avglumpsize, 'x') as file:
                 pass
             with open(self.filename_lumpsizehist, 'x') as file:
