@@ -6,7 +6,6 @@ import cv2
 import csv
 import datetime
 import sys
-import time
 import concurrent.futures
 
 class Automaton :
@@ -48,7 +47,9 @@ class SMCA(Automaton):
         Parameters :
         <put them as I go>
     """
+    
     nsteps = 20
+
 
     def __init__(self, size, is_countinglumps = True):
         super().__init__(size)
@@ -57,19 +58,20 @@ class SMCA(Automaton):
         self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
         #self.particles[:,100:190,40:60]=1
         self.is_countinglumps = is_countinglumps
+        self.steps_cnt = 0
         if self.is_countinglumps:
-            self.steps_cnt = 0
-            self.steps_time = time.time()
-            self.filename = "output_" + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".csv"
-            with open(self.filename, 'x') as file:
+            self.filename_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            self.filename_avglumpsize = self.filename_timestamp + "_avglumpsize.csv"
+            self.filename_lumpsizehist = self.filename_timestamp + "_lumpsizehistogram.csv"
+            with open(self.filename_avglumpsize, 'x') as file:
                 pass
-
-
+            with open(self.filename_lumpsizehist, 'x') as file:
+                pass
         # Contains in arrays the direction North,West,South,East
         self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])
-        
         # Contains np.roll(,•,•) input for North,West,South,East
         self.rollinput = np.array([[-1,0],[-1,1],[1,0],[1,1]])
+
 
     def collision_step(self):
         """
@@ -78,13 +80,13 @@ class SMCA(Automaton):
         self.particles= \
             collision_cpu(self.particles,self.w,self.h,self.dir)
 
+
     def propagation_step(self):
         """
             Does the propagation step of the automaton
         """
         # self.particles = \
         #     propagation_cpu(self.particles,self.w,self.h,self.dir)
-        
         self.propagation_step_v2()
         
     
@@ -94,50 +96,50 @@ class SMCA(Automaton):
 
 
     def count_lupms(self):
-        img = np.copy(self.particles).astype(np.uint8) # this is required by cv2.connectedComponentsWithStats
-        connectivity = 4 # Neighborhood connectivity (= 4 or 8)
-        avg_lump_size = np.zeros((4,), dtype=float)
-
         with concurrent.futures.ThreadPoolExecutor(4) as executor:
-            avg_lump_size = list(executor.map(count_lupms_aux, self.particles[[0,1,2,3],:,:]))
-
-        csv.writer(sys.stdout).writerow(avg_lump_size)        
-        with open(self.filename, 'a', encoding='UTF8', newline='') as f:
-            csv.writer(f).writerow(avg_lump_size)
-
+            out = list(executor.map(count_lupms_aux, self.particles[[0,1,2,3],:,:]))
+        avg_lump_sizes = [tpl[0] for tpl in out]
+        bins = [tpl[1] for tpl in out]
+        hist = [tpl[2] for tpl in out]
+        dirs = [["NORTH"], ["WEST"], ["SOUTH"], ["EAST"]]
+        print("="*80)
+        print("Step # = " + str(self.steps_cnt))
+        print("Averge lump sizes: NORTH, WEST, SOUTH, EAST")
+        csv.writer(sys.stdout).writerow(avg_lump_sizes)
+        with open(self.filename_avglumpsize, 'a', encoding='UTF8', newline='') as f:
+            csv.writer(f).writerow(avg_lump_sizes)
+        with open(self.filename_lumpsizehist , 'a', encoding='UTF8', newline='') as f:
+            csv.writer(f).writerow([self.steps_cnt])
+            for i in prange(4):
+                csv.writer(f).writerow(dirs[i])
+                csv.writer(f).writerow(bins[i])
+                csv.writer(f).writerow(hist[i])
+        
 
     def step(self):
         """
             Steps the automaton state by one iteration.
         """
-        tp = time.time()
         self.propagation_step()
-        tp = time.time() - tp
-        tc = time.time()
         self.collision_step()
-        tc = time.time() - tc
-        tl = time.time()
-        if (self.steps_cnt % SMCA.nsteps == 0 & self.is_countinglumps):
-            self.count_lupms()
-            tl = time.time() - tl
-            print("Step # \t\t= " + str(self.steps_cnt))
-            print("Elapsed time \t= " + str(time.time() - self.steps_time))
-            print("Propagation time \t= " + str(tp))
-            print("Collision time \t\t= " + str(tc))
-            print("Lump calc time \t\t= " + str(tl))
-        self.steps_cnt += 1
         self._worldmap = np.zeros_like(self._worldmap) #(3,W,H)
         self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/4.))[:,:,None]
+        if (self.steps_cnt % SMCA.nsteps == 0 & self.is_countinglumps):
+            self.count_lupms()
+        self.steps_cnt += 1
 
 
 def count_lupms_aux(colinear_particles):
-    img = np.copy(colinear_particles).astype(np.uint8) # this is required by cv2.connectedComponentsWithStats
+    # this is required by cv2.connectedComponentsWithStats
+    img = np.copy(colinear_particles).astype(np.uint8)
     connectivity = 4 # Neighborhood connectivity (= 4 or 8)
-    avg_lump_size = 0
-    (num_labels, labeled_img, stat_values, centroid) = \
+    (num_labels, labeled_img, stats, centroid) = \
         cv2.connectedComponentsWithStats(img, connectivity, cv2.CV_32S)
-    # TODO : double-check OpenCV doc re. index range 1:num_labels
-    return stat_values[1:num_labels, cv2.CC_STAT_AREA].sum() / num_labels
+    # label=0 is always the background, so we begin from label=1
+    avg_size = stats[1:, cv2.CC_STAT_AREA].sum() / (num_labels-1)
+    hist = np.bincount(stats[1:, cv2.CC_STAT_AREA])
+    bins = np.arange(1, np.max(stats[1:, cv2.CC_STAT_AREA])+1)
+    return (avg_size, bins, hist[1:])
 
 
 @njit(parallel=True)
@@ -159,7 +161,6 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 s = np.sqrt(totalx**2 + totaly**2)
                 #cross section 
                 sigma = s/(4*np.sqrt(2))
-
                 if(particles[0,x,y]==1 and particles[2,x,y]==1):
                     #if s == 0 we can not defive cos and sin, so we eliminate this situation
                     if s == 0:
@@ -178,7 +179,6 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                         newparticles[2,x,y]=particles[3,x,y]
                         newparticles[1,x,y]=0
                         newparticles[3,x,y]=0
-
     return newparticles
 
     
@@ -192,7 +192,6 @@ def propagation_cpu(particles,w,h,dirdico):
                 newpos = (loc+dirdico[dir])%np.array([w,h])
                 if(particles[dir,x,y]==1):
                     newparticles[dir,newpos[0],newpos[1]]=particles[dir,x,y]
-                
     return newparticles
 
 

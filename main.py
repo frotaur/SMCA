@@ -4,9 +4,12 @@ from Automaton import *
 import cv2
 import os
 
+# Clear terminal
+os.system('cls')
+
 # Initialize the pygame screen 
 pygame.init()
-W,H =1700,900
+W, H = 300, 300
 screen = pygame.display.set_mode((W,H),flags=pygame.SCALED|pygame.RESIZABLE)
 clock = pygame.time.Clock()
 running = True
@@ -23,11 +26,10 @@ updating = True
 recording = False
 launch_video = False
 
-os.system('CLS')
-
 while running:
     # poll for events
     # pygame.QUIT event means the user clicked X to close your window
+
     for event in pygame.event.get():
         # Event loop. Here we deal with all the interactivity
         if event.type == pygame.QUIT:
@@ -41,10 +43,11 @@ while running:
                     launch_video=True
         # Handle the event loop for the camera
         camera.handle_event(event)
-    
+
     if(updating):
         # Step the automaton if we are updating
-        auto.step()
+        auto.step()    
+
     #Retrieve the world_state from automaton
     world_state = auto.worldmap
 
@@ -62,21 +65,17 @@ while running:
         frame_bgr = cv2.cvtColor(auto.worldmap, cv2.COLOR_RGB2BGR)
         video_out.write(frame_bgr)
         pygame.draw.circle(surface, (255,0,0), (W-10,H-10),2)
+
     # Clear the screen
     screen.fill((0, 0, 0))
-
     # Draw the scaled surface on the window
     zoomed_surface = camera.apply(surface)
-
     screen.blit(zoomed_surface, (0,0))
-
     # Update the screen
     pygame.display.flip()
     # flip() the display to put your work on screen
-
     clock.tick(30)  # limits FPS to 60
 
-  
 
 pygame.quit()
 video_out.release()
