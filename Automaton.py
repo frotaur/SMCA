@@ -52,7 +52,7 @@ class SMCA(Automaton):
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
         self.particles = np.where(self.particles>1.9,1,0).astype(np.int16)
-        self.particles[:,100:190,40:60]=1
+        # self.particles[:,100:190,40:60]=1
 
 
 
@@ -185,20 +185,24 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
 
             #two-particle scattering interaction
             elif(partictot[x,y] == 2):
-                coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y]
-                coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,y+1] + particles[2,x+1,y]
-                coherencyW = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,y+1] + particles[1,x+1,y]
-                coherencyE = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,y+1] + particles[3,x+1,y]
+                coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y] \
+                + particles[0,x-1,y-1] + particles[0,x-1,y+1] + particles[0,x+1,y-1] + particles[0,x+1,y+1]
+                coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,y+1] + particles[2,x+1,y] \
+                + particles[2,x-1,y-1] + particles[2,x-1,y+1] + particles[2,x+1,y-1] + particles[2,x+1,y+1]
+                coherencyW = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,y+1] + particles[1,x+1,y] \
+                + particles[1,x-1,y-1] + particles[1,x-1,y+1] + particles[1,x+1,y-1] + particles[1,x+1,y+1]
+                coherencyE = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,y+1] + particles[3,x+1,y] \
+                + particles[3,x-1,y-1] + particles[3,x-1,y+1] + particles[3,x+1,y-1] + particles[3,x+1,y+1]
                 totaly = coherencyN - coherencyS
                 totalx = coherencyE - coherencyW
                 s = np.sqrt(totalx**2 + totaly**2)
                 #non-monotonic cross section 
-                sigma = simga_max*np.abs(np.sin((np.pi/(4*np.sqrt(2)))*s))**3
+                #sigma = simga_max*np.abs(np.sin((np.pi/(4*np.sqrt(2)))*s))**3
                 #monotonic cross section
-                #sigma = s/(4*np.sqrt(2))
+                sigma = s/(4*np.sqrt(2))
 
                 if(particles[0,x,y]==1 and particles[2,x,y]==1):
-                    #if s == 0 we can not defive cos and sin, so we eliminate this situation
+                    #if s == 0 we can not define cos and sin, so we eliminate this situation
                     if s == 0:
                         pass
                     elif (np.random.uniform() <= (np.abs(totalx/s)**n)*sigma):
@@ -208,7 +212,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                         newparticles[2,x,y]=0
 
                 elif(particles[1,x,y]==1 and particles[3,x,y]==1):
-                    #if s == 0 we can not defive cos and sin, so we eliminate this situation
+                    #if s == 0 we can not define cos and sin, so we eliminate this situation
                     if s == 0:
                         pass
                     elif(np.random.uniform() <= (np.abs(totaly/s)**n)*sigma):
