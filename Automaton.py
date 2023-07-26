@@ -53,7 +53,7 @@ class SMCA(Automaton):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
-        self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
+        self.particles = np.where(self.particles>1.7,1,0).astype(np.int16)
         #self.particles[:,100:190,40:60]=1
         self.is_countinglumps = is_countinglumps
         self.steps_cnt = 0
@@ -85,10 +85,10 @@ class SMCA(Automaton):
             Does the propagation step of the automaton
         """
         # * version 1 of propagation.
-        # self.particles = \
-        #     propagation_cpu(self.particles,self.w,self.h,self.dir)
+        self.particles = \
+            propagation_cpu(self.particles,self.w,self.h,self.dir)
         # * version 2 of propagation. This is much faster but less versatile.
-        self.propagation_step_v2()
+        # self.propagation_step_v2()
         
     
     def propagation_step_v2(self):
