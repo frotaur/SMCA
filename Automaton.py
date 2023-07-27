@@ -153,7 +153,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     partictot = particles[:].sum(axis=0) # (W,H)
     newparticles = np.copy(particles)
     #natural selection parameter
-    n = 5
+    n = 10
     #probability of sticking
     p = 1
     # The maximum possible value for the cross section
