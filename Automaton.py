@@ -70,30 +70,25 @@ class SMCA(Automaton):
             with open(self.filename_lumpsizehist, 'x') as file:
                 pass
         
+    def propagation_step(self):
+        """
+            Does the propagation step of the automaton
+        """
+        # * version 1 of propagation.
+        self.particles = propagation_cpu(self.particles,self.w,self.h,self.dir)
+        # * version 2 of propagation. This is much faster but less versatile.
+        #self.propagation_step_v2()
+        
+    # def propagation_step_v2(self):
+    #     for i in prange(4):
+    #         self.particles[i, :, :] = np.roll(self.particles[i, :, :], self.rollinput[i, 0], self.rollinput[i, 1])
 
 
     def collision_step(self):
         """
             Does the collision step of the automaton
         """
-        self.particles= \
-            collision_cpu(self.particles,self.w,self.h,self.dir)
-
-
-    def propagation_step(self):
-        """
-            Does the propagation step of the automaton
-        """
-        # * version 1 of propagation.
-        self.particles = \
-            propagation_cpu(self.particles,self.w,self.h,self.dir)
-        # * version 2 of propagation. This is much faster but less versatile.
-        # self.propagation_step_v2()
-        
-    
-    def propagation_step_v2(self):
-        for i in prange(4):
-            self.particles[i, :, :] = np.roll(self.particles[i, :, :], self.rollinput[i, 0], self.rollinput[i, 1])
+        self.particles = collision_cpu(self.particles,self.w,self.h,self.dir)
 
 
     def count_lupms(self):
@@ -125,7 +120,7 @@ class SMCA(Automaton):
         self.collision_step()
         self._worldmap = np.zeros_like(self._worldmap) #(3,W,H)
         self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/4.))[:,:,None]
-        if (self.steps_cnt % SMCA.nsteps == 0 & self.is_countinglumps):
+        if (self.steps_cnt % SMCA.nsteps == 0 and self.is_countinglumps):
             self.count_lupms()
         self.steps_cnt += 1
 
@@ -173,7 +168,6 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                     W = particles[1,x-1,y-1] + particles[1,x,y-1] + particles[1,xplus1,y-1]
                     E = particles[3,x-1,y-1] + particles[3,x,y-1] + particles[3,xplus1,y-1]
                     
-                    # There is a huge difference between setting S >= 3 and S >= 2
                     if (S >= 2 and W < 2 and E < 2):
                         if np.random.uniform() <= p:
                             newparticles[0,x,y] = 0
