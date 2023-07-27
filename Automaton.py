@@ -246,23 +246,48 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
             
             #two-particle scattering interaction
             elif(partictot[x,y] == 2):
+                #weight of the first neighbour and weight of the second neighbour 
+                p1 = 1
+                p2 = -0.5
                 yplus1 = (y+1)%h
                 xplus1 = (x+1)%w
-                coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,yplus1] + particles[0,xplus1,y] \
+                yplus2 = (y+2)%h
+                xplus2 = (x+2)%w
+                coherencyN1 = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,yplus1] + particles[0,xplus1,y] \
                 + particles[0,x-1,y-1] + particles[0,x-1,yplus1] + particles[0,xplus1,y-1] + particles[0,xplus1,yplus1]
-                coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,yplus1] + particles[2,xplus1,y] \
+                coherencyS1 = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,yplus1] + particles[2,xplus1,y] \
                 + particles[2,x-1,y-1] + particles[2,x-1,yplus1] + particles[2,xplus1,y-1] + particles[2,xplus1,yplus1]
-                coherencyW = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,yplus1] + particles[1,xplus1,y] \
+                coherencyW1 = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,yplus1] + particles[1,xplus1,y] \
                 + particles[1,x-1,y-1] + particles[1,x-1,yplus1] + particles[1,xplus1,y-1] + particles[1,xplus1,yplus1]
-                coherencyE = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,yplus1] + particles[3,xplus1,y] \
+                coherencyE1 = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,yplus1] + particles[3,xplus1,y] \
                 + particles[3,x-1,y-1] + particles[3,x-1,yplus1] + particles[3,xplus1,y-1] + particles[3,xplus1,yplus1]
-                totaly = coherencyN - coherencyS
-                totalx = coherencyE - coherencyW
+                
+                coherencyN2 = particles [0,x-2,y-2] + particles[0,x-1,y-2] + particles[0,x,y-2] + particles[0,xplus1,y-2] + particles[0,xplus2,y-2] \
+                    + particles[0,x-2,y-1] + particles[0,xplus2,y-1] \
+                    + particles[0,x-2,y] + particles[0,xplus2,y] \
+                    + particles[0,x-2,yplus1] + particles[0,xplus2,yplus1] \
+                    + particles [0,x-2,yplus2] + particles[0,x-1,yplus2] + particles[0,x,yplus2] + particles[0,xplus1,yplus2] + particles[0,xplus2,yplus2]
+                coherencyW2 = particles [1,x-2,y-2] + particles[1,x-1,y-2] + particles[1,x,y-2] + particles[1,xplus1,y-2] + particles[1,xplus2,y-2] \
+                    + particles[1,x-2,y-1] + particles[1,xplus2,y-1] \
+                    + particles[1,x-2,y] + particles[1,xplus2,y] \
+                    + particles[1,x-2,yplus1] + particles[1,xplus2,yplus1] \
+                    + particles [1,x-2,yplus2] + particles[1,x-1,yplus2] + particles[1,x,yplus2] + particles[1,xplus1,yplus2] + particles[1,xplus2,yplus2]
+                coherencyS2 = particles [2,x-2,y-2] + particles[2,x-1,y-2] + particles[2,x,y-2] + particles[2,xplus1,y-2] + particles[2,xplus2,y-2] \
+                    + particles[2,x-2,y-1] + particles[2,xplus2,y-1] \
+                    + particles[2,x-2,y] + particles[2,xplus2,y] \
+                    + particles[2,x-2,yplus1] + particles[2,xplus2,yplus1] \
+                    + particles [2,x-2,yplus2] + particles[2,x-1,yplus2] + particles[2,x,yplus2] + particles[2,xplus1,yplus2] + particles[2,xplus2,yplus2]
+                coherencyE2 = particles [3,x-2,y-2] + particles[3,x-1,y-2] + particles[3,x,y-2] + particles[3,xplus1,y-2] + particles[3,xplus2,y-2] \
+                    + particles[3,x-2,y-1] + particles[3,xplus2,y-1] \
+                    + particles[3,x-2,y] + particles[3,xplus2,y] \
+                    + particles[3,x-2,yplus1] + particles[3,xplus2,yplus1] \
+                    + particles [3,x-2,yplus2] + particles[3,x-1,yplus2] + particles[3,x,yplus2] + particles[3,xplus1,yplus2] + particles[3,xplus2,yplus2]
+                totaly = p1*(coherencyN1 - coherencyS1) + p2*(coherencyN2 - coherencyS2)
+                totalx = p1*(coherencyE1 - coherencyW1) + p2*(coherencyE2 - coherencyW2)
                 s = np.sqrt(totalx**2 + totaly**2)
-                #non-monotonic cross section 
-                sigma = simga_max*np.abs(np.sin((np.pi/(4*np.sqrt(2)))*s))**3
-                #monotonic cross section
-                #sigma = s/(4*np.sqrt(2))
+                #normalized cross section
+                sigma = s/(np.sqrt(2)*(np.abs(p1)*8+np.abs(p2)*16))
+
                 if(particles[0,x,y]==1 and particles[2,x,y]==1):
                     #if s == 0 we can not define cos and sin, so we eliminate this situation
                     if s == 0:
