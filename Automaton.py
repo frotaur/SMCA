@@ -19,7 +19,7 @@ class Automaton :
         and describes how the world is 'seen' by an observer.
 
         Parameters :
-        size : 2-uple (W,H)
+        size : 2-Tuple (W,H)
             Shape of the CA world
         
     """
@@ -52,8 +52,10 @@ class SMCA(Automaton):
     def __init__(self, size, is_countinglumps = True):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
-        self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
-        self.particles = np.where(self.particles>1.7,1,0).astype(np.int16)
+        self.particles = np.random.randn(5,self.w,self.h) 
+        copy_rest_particles = self.particles[4:5,:,:]
+        self.particles = np.append(self.particles, copy_rest_particles, axis = 0) # (6,w,h) in which the last two components are for the rest paticles
+        self.particles = np.where(self.particles > 1.6,1,0).astype(np.int16)
         #self.particles[:,100:190,40:60]=1
         self.is_countinglumps = is_countinglumps
         self.steps_cnt = 0
@@ -119,7 +121,7 @@ class SMCA(Automaton):
         self.propagation_step()
         self.collision_step()
         self._worldmap = np.zeros_like(self._worldmap) #(3,W,H)
-        self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/4.))[:,:,None]
+        self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/6.))[:,:,None]
         if (self.steps_cnt % SMCA.nsteps == 0 and self.is_countinglumps):
             self.count_lupms()
         self.steps_cnt += 1
@@ -145,7 +147,10 @@ def count_lupms_aux(colinear_particles):
 
 @njit(parallel=True)
 def collision_cpu(particles :np.ndarray,w,h,dirdico):
-    partictot = particles[:].sum(axis=0) # (W,H)
+    partictot_moving = particles[0:4,:,:].sum(axis=0) # (W,H)
+    partictot_rest = particles[4:6,:,:].sum(axis=0)  #(W,H)
+
+    
     newparticles = np.copy(particles)
     #natural selection parameter
     n = 10
@@ -158,12 +163,82 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     for x in prange(w):
         for y in prange(h):
             #one-particle sticking interaction
-            if (partictot[x,y] == 1):
+            if (partictot_moving[x,y] == 1):
+                #weight of the first neighbour and weight of the second neighbour 
+                p1 = 1
+                p2 = -0.5
                 yplus1 = (y+1)%h
                 xplus1 = (x+1)%w
+                yplus2 = (y+2)%h
+                xplus2 = (x+2)%w
+                # R means rest 
+                coherencyN1 = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,yplus1] + particles[0,xplus1,y] \
+                + particles[0,x-1,y-1] + particles[0,x-1,yplus1] + particles[0,xplus1,y-1] + particles[0,xplus1,yplus1]
+                coherencyS1 = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,yplus1] + particles[2,xplus1,y] \
+                + particles[2,x-1,y-1] + particles[2,x-1,yplus1] + particles[2,xplus1,y-1] + particles[2,xplus1,yplus1]
+                coherencyW1 = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,yplus1] + particles[1,xplus1,y] \
+                + particles[1,x-1,y-1] + particles[1,x-1,yplus1] + particles[1,xplus1,y-1] + particles[1,xplus1,yplus1]
+                coherencyE1 = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,yplus1] + particles[3,xplus1,y] \
+                + particles[3,x-1,y-1] + particles[3,x-1,yplus1] + particles[3,xplus1,y-1] + particles[3,xplus1,yplus1]
+                coherencyR1 = particles[4,x,y-1] + particles[4,x-1,y] + particles[4,x,yplus1] + particles[4,xplus1,y] \
+                + particles[4,x-1,y-1] + particles[4,x-1,yplus1] + particles[4,xplus1,y-1] + particles[4,xplus1,yplus1] \
+                + particles[5,x,y-1] + particles[5,x-1,y] + particles[5,x,yplus1] + particles[5,xplus1,y] \
+                + particles[5,x-1,y-1] + particles[5,x-1,yplus1] + particles[5,xplus1,y-1] + particles[5,xplus1,yplus1]
+                
+                coherencyN2 = particles [0,x-2,y-2] + particles[0,x-1,y-2] + particles[0,x,y-2] + particles[0,xplus1,y-2] + particles[0,xplus2,y-2] \
+                    + particles[0,x-2,y-1] + particles[0,xplus2,y-1] \
+                    + particles[0,x-2,y] + particles[0,xplus2,y] \
+                    + particles[0,x-2,yplus1] + particles[0,xplus2,yplus1] \
+                    + particles [0,x-2,yplus2] + particles[0,x-1,yplus2] + particles[0,x,yplus2] + particles[0,xplus1,yplus2] + particles[0,xplus2,yplus2]
+                coherencyW2 = particles [1,x-2,y-2] + particles[1,x-1,y-2] + particles[1,x,y-2] + particles[1,xplus1,y-2] + particles[1,xplus2,y-2] \
+                    + particles[1,x-2,y-1] + particles[1,xplus2,y-1] \
+                    + particles[1,x-2,y] + particles[1,xplus2,y] \
+                    + particles[1,x-2,yplus1] + particles[1,xplus2,yplus1] \
+                    + particles [1,x-2,yplus2] + particles[1,x-1,yplus2] + particles[1,x,yplus2] + particles[1,xplus1,yplus2] + particles[1,xplus2,yplus2]
+                coherencyS2 = particles [2,x-2,y-2] + particles[2,x-1,y-2] + particles[2,x,y-2] + particles[2,xplus1,y-2] + particles[2,xplus2,y-2] \
+                    + particles[2,x-2,y-1] + particles[2,xplus2,y-1] \
+                    + particles[2,x-2,y] + particles[2,xplus2,y] \
+                    + particles[2,x-2,yplus1] + particles[2,xplus2,yplus1] \
+                    + particles [2,x-2,yplus2] + particles[2,x-1,yplus2] + particles[2,x,yplus2] + particles[2,xplus1,yplus2] + particles[2,xplus2,yplus2]
+                coherencyE2 = particles [3,x-2,y-2] + particles[3,x-1,y-2] + particles[3,x,y-2] + particles[3,xplus1,y-2] + particles[3,xplus2,y-2] \
+                    + particles[3,x-2,y-1] + particles[3,xplus2,y-1] \
+                    + particles[3,x-2,y] + particles[3,xplus2,y] \
+                    + particles[3,x-2,yplus1] + particles[3,xplus2,yplus1] \
+                    + particles [3,x-2,yplus2] + particles[3,x-1,yplus2] + particles[3,x,yplus2] + particles[3,xplus1,yplus2] + particles[3,xplus2,yplus2]
+                coherencyR2 = particles [4,x-2,y-2] + particles[4,x-1,y-2] + particles[4,x,y-2] + particles[4,xplus1,y-2] + particles[4,xplus2,y-2] \
+                    + particles[4,x-2,y-1] + particles[4,xplus2,y-1] \
+                    + particles[4,x-2,y] + particles[4,xplus2,y] \
+                    + particles[4,x-2,yplus1] + particles[4,xplus2,yplus1] \
+                    + particles [4,x-2,yplus2] + particles[4,x-1,yplus2] + particles[4,x,yplus2] + particles[4,xplus1,yplus2] + particles[4,xplus2,yplus2] \
+                    + particles [5,x-2,y-2] + particles[5,x-1,y-2] + particles[5,x,y-2] + particles[5,xplus1,y-2] + particles[5,xplus2,y-2] \
+                    + particles[5,x-2,y-1] + particles[5,xplus2,y-1] \
+                    + particles[5,x-2,y] + particles[5,xplus2,y] \
+                    + particles[5,x-2,yplus1] + particles[5,xplus2,yplus1] \
+                    + particles [5,x-2,yplus2] + particles[5,x-1,yplus2] + particles[5,x,yplus2] + particles[5,xplus1,yplus2] + particles[5,xplus2,yplus2]
+                    
+                totaly = p1*(coherencyN1 - coherencyS1) + p2*(coherencyN2 - coherencyS2)
+                totalx = p1*(coherencyE1 - coherencyW1) + p2*(coherencyE2 - coherencyW2)
+                totalz = p1*coherencyR1 + p2*coherencyR2
+                # s = np.sqrt(totalx**2 + totaly**2 + totalz**2)
+                # #normalized cross section
+                # sigma = s/(np.sqrt(4)*(np.abs(p1)*8+np.abs(p2)*16))
+                s = np.sqrt(totalx**2 + totaly**2)
+                sigma = s/(np.sqrt(2)*(np.abs(p1)*8+np.abs(p2)*16))
+                #One particle comes and force two particles move:
+                if (partictot_rest[x,y] == 2 and np.random.uniform() < ((1-(np.abs(totalz/s)**n)*sigma)*0.15) ): # the multiplication by 0.15 is just for help to make the rest particles more stable
 
-                #moving in N direction
-                if (particles[0,x,y] == 1):
+                    if (particles[0,x,y] == 1 or particles[2,x,y] == 1):
+                        newparticles[4,x,y] = 0
+                        newparticles[5,x,y] = 0
+                        newparticles[1,x,y] = 1
+                        newparticles[3,x,y] = 1
+                    else:
+                        newparticles[4,x,y] = 0
+                        newparticles[5,x,y] = 0
+                        newparticles[0,x,y] = 1
+                        newparticles[2,x,y] = 1
+                # moving in N direction
+                elif (particles[0,x,y] == 1):
                     S = particles[2,x-1,y-1] + particles[2,x,y-1] + particles[2,xplus1,y-1]
                     W = particles[1,x-1,y-1] + particles[1,x,y-1] + particles[1,xplus1,y-1]
                     E = particles[3,x-1,y-1] + particles[3,x,y-1] + particles[3,xplus1,y-1]
@@ -238,8 +313,8 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                             newparticles[3,x,y] = 0
                             newparticles[2,x,y] = 1
             
-            #two-particle scattering interaction
-            elif(partictot[x,y] == 2):
+            #two particle scattering interaction
+            elif(partictot_moving[x,y] == 2):
                 #weight of the first neighbour and weight of the second neighbour 
                 p1 = 1
                 p2 = -0.5
@@ -247,6 +322,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 xplus1 = (x+1)%w
                 yplus2 = (y+2)%h
                 xplus2 = (x+2)%w
+                # R means rest 
                 coherencyN1 = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,yplus1] + particles[0,xplus1,y] \
                 + particles[0,x-1,y-1] + particles[0,x-1,yplus1] + particles[0,xplus1,y-1] + particles[0,xplus1,yplus1]
                 coherencyS1 = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,yplus1] + particles[2,xplus1,y] \
@@ -255,6 +331,10 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 + particles[1,x-1,y-1] + particles[1,x-1,yplus1] + particles[1,xplus1,y-1] + particles[1,xplus1,yplus1]
                 coherencyE1 = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,yplus1] + particles[3,xplus1,y] \
                 + particles[3,x-1,y-1] + particles[3,x-1,yplus1] + particles[3,xplus1,y-1] + particles[3,xplus1,yplus1]
+                coherencyR1 = particles[4,x,y-1] + particles[4,x-1,y] + particles[4,x,yplus1] + particles[4,xplus1,y] \
+                + particles[4,x-1,y-1] + particles[4,x-1,yplus1] + particles[4,xplus1,y-1] + particles[4,xplus1,yplus1] \
+                + particles[5,x,y-1] + particles[5,x-1,y] + particles[5,x,yplus1] + particles[5,xplus1,y] \
+                + particles[5,x-1,y-1] + particles[5,x-1,yplus1] + particles[5,xplus1,y-1] + particles[5,xplus1,yplus1]
                 
                 coherencyN2 = particles [0,x-2,y-2] + particles[0,x-1,y-2] + particles[0,x,y-2] + particles[0,xplus1,y-2] + particles[0,xplus2,y-2] \
                     + particles[0,x-2,y-1] + particles[0,xplus2,y-1] \
@@ -276,16 +356,38 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                     + particles[3,x-2,y] + particles[3,xplus2,y] \
                     + particles[3,x-2,yplus1] + particles[3,xplus2,yplus1] \
                     + particles [3,x-2,yplus2] + particles[3,x-1,yplus2] + particles[3,x,yplus2] + particles[3,xplus1,yplus2] + particles[3,xplus2,yplus2]
+                coherencyR2 = particles [4,x-2,y-2] + particles[4,x-1,y-2] + particles[4,x,y-2] + particles[4,xplus1,y-2] + particles[4,xplus2,y-2] \
+                    + particles[4,x-2,y-1] + particles[4,xplus2,y-1] \
+                    + particles[4,x-2,y] + particles[4,xplus2,y] \
+                    + particles[4,x-2,yplus1] + particles[4,xplus2,yplus1] \
+                    + particles [4,x-2,yplus2] + particles[4,x-1,yplus2] + particles[4,x,yplus2] + particles[4,xplus1,yplus2] + particles[4,xplus2,yplus2] \
+                    + particles [5,x-2,y-2] + particles[5,x-1,y-2] + particles[5,x,y-2] + particles[5,xplus1,y-2] + particles[5,xplus2,y-2] \
+                    + particles[5,x-2,y-1] + particles[5,xplus2,y-1] \
+                    + particles[5,x-2,y] + particles[5,xplus2,y] \
+                    + particles[5,x-2,yplus1] + particles[5,xplus2,yplus1] \
+                    + particles [5,x-2,yplus2] + particles[5,x-1,yplus2] + particles[5,x,yplus2] + particles[5,xplus1,yplus2] + particles[5,xplus2,yplus2]
+                    
                 totaly = p1*(coherencyN1 - coherencyS1) + p2*(coherencyN2 - coherencyS2)
                 totalx = p1*(coherencyE1 - coherencyW1) + p2*(coherencyE2 - coherencyW2)
+                totalz = p1*coherencyR1 + p2*coherencyR2
+                # s = np.sqrt(totalx**2 + totaly**2 + totalz**2)
+                # #normalized cross section
+                # sigma = s/(np.sqrt(4)*(np.abs(p1)*8+np.abs(p2)*16))
                 s = np.sqrt(totalx**2 + totaly**2)
-                #normalized cross section
                 sigma = s/(np.sqrt(2)*(np.abs(p1)*8+np.abs(p2)*16))
+                #two particles with opposite positions come and rest after the collision: 
+                if ((partictot_rest[x,y] == 0) and ((particles[0,x,y] == 1 and particles[2,x,y] == 1) or (particles[1,x,y] == 1 and particles[3,x,y] == 1)) and
+                    (np.random.uniform() < 0.8 + (np.abs(totalz/s)**n)*sigma)): # 0.8 is just a manual number to help that this happens more
+                        newparticles[0,x,y] = newparticles[1,x,y] = newparticles[2,x,y] = newparticles[3,x,y] = 0
+                        newparticles[4,x,y] = newparticles[5,x,y] = 1
 
-                if(particles[0,x,y]==1 and particles[2,x,y]==1):
+                elif(particles[0,x,y]==1 and particles[2,x,y]==1):
                     #if s == 0 we can not define cos and sin, so we eliminate this situation
                     if s == 0:
-                        pass
+                        newparticles[1,x,y]=particles[0,x,y]
+                        newparticles[3,x,y]=particles[2,x,y]
+                        newparticles[0,x,y]=0
+                        newparticles[2,x,y]=0
                     elif (np.random.uniform() <= (np.abs(totalx/s)**n)*sigma):
                         newparticles[1,x,y]=particles[0,x,y]
                         newparticles[3,x,y]=particles[2,x,y]
@@ -294,12 +396,28 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 elif(particles[1,x,y]==1 and particles[3,x,y]==1):
                     #if s == 0 we can not define cos and sin, so we eliminate this situation
                     if s == 0:
-                        pass
+                        newparticles[0,x,y]=particles[1,x,y]
+                        newparticles[2,x,y]=particles[3,x,y]
+                        newparticles[1,x,y]=0
+                        newparticles[3,x,y]=0
                     elif(np.random.uniform() <= (np.abs(totaly/s)**n)*sigma):
                         newparticles[0,x,y]=particles[1,x,y]
                         newparticles[2,x,y]=particles[3,x,y]
                         newparticles[1,x,y]=0
                         newparticles[3,x,y]=0
+            
+            #four particles:
+            elif(partictot_moving[x,y] == 4):
+                if partictot_rest == 0:
+                    if np.random.uniform() < 0.5:
+                        newparticles[0,x,y] = newparticles[2,x,y] = 1
+                        newparticles[1,x,y] = newparticles[3,x,y] = 0
+                        newparticles[4,x,y] = newparticles[5,x,y] = 1
+                    else:
+                        newparticles[0,x,y] = newparticles[2,x,y] = 0
+                        newparticles[1,x,y] = newparticles[3,x,y] = 1
+                        newparticles[4,x,y] = newparticles[5,x,y] = 1
+                                        
     return newparticles
 
 
@@ -309,14 +427,14 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
 
 @njit(parallel=True)
 def propagation_cpu(particles,w,h,dirdico):
-    newparticles=np.zeros_like(particles)
+    newparticles=np.copy(particles)
     for x in prange(w):
         for y in prange(h):
             loc = np.array([x,y])
             for dir in range(4):
                 newpos = (loc+dirdico[dir])%np.array([w,h])
-                if(particles[dir,x,y]==1):
-                    newparticles[dir,newpos[0],newpos[1]]=particles[dir,x,y]
+                newparticles[dir,newpos[0],newpos[1]] = particles[dir,x,y]
+                
     return newparticles
 
 
