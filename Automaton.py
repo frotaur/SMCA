@@ -136,9 +136,13 @@ def count_lupms_aux(colinear_particles):
     (num_labels, labeled_img, stats, centroid) = \
         cv2.connectedComponentsWithStats(img, connectivity, cv2.CV_32S)
     # label=0 is always the background, so we begin from label=1
-    avg_size = stats[1:, cv2.CC_STAT_AREA].sum() / (num_labels-1)
-    hist = np.bincount(stats[1:, cv2.CC_STAT_AREA])
-    bins = np.arange(1, np.max(stats[1:, cv2.CC_STAT_AREA])+1)
+    try:
+        avg_size = stats[1:, cv2.CC_STAT_AREA].sum() / (num_labels-1)
+        hist = np.bincount(stats[1:, cv2.CC_STAT_AREA])
+        bins = np.arange(1, np.max(stats[1:, cv2.CC_STAT_AREA])+1)
+    except ValueError:
+        avg_size = 0
+        bins = hist = [0]
     return (avg_size, bins, hist[1:])
 
 
