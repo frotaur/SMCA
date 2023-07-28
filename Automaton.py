@@ -53,13 +53,14 @@ class SMCA(Automaton):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
+        # self.particles = np.where(self.particles>1.7,1,0).astype(np.int16)
         self.particles = np.where(self.particles>1.7,1,0).astype(np.int16)
         #self.particles[:,100:190,40:60]=1
         self.is_countinglumps = is_countinglumps
         self.steps_cnt = 0
         self.relative_path = "./CSV/"   #The name of folder in which csv files willl be saved  #! You must have a folder with the same name in your project folder
         self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])  # Contains arrays of the direction North,West,South,East
-        self.rollinput = np.array([[-1,0],[-1,1],[1,0],[1,1]])   # Contains np.roll(,•,•) input for North,West,South,East
+        self.rollinput = np.array([[-1,1],[-1,0],[1,1],[1,0]])   # Contains np.roll(,•,•) input for North,West,South,East
         # This part creates two csv files one for average size of the clumps and the other for the histogram:
         if self.is_countinglumps:
             self.filename_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -75,13 +76,16 @@ class SMCA(Automaton):
             Does the propagation step of the automaton
         """
         # * version 1 of propagation.
-        self.particles = propagation_cpu(self.particles,self.w,self.h,self.dir)
+        # self.particles = propagation_cpu(self.particles,self.w,self.h,self.dir)
         # * version 2 of propagation. This is much faster but less versatile.
-        #self.propagation_step_v2()
+        a = propagation_cpu(self.particles,self.w,self.h,self.dir)
+        self.propagation_step_v2()
+        if np.subtract(a[0,:,:], self.particles[0,:,:]).any():
+            raise ValueError("Propagation methods v1 and v2 yield differen results!")
         
-    # def propagation_step_v2(self):
-    #     for i in prange(4):
-    #         self.particles[i, :, :] = np.roll(self.particles[i, :, :], self.rollinput[i, 0], self.rollinput[i, 1])
+    def propagation_step_v2(self):
+        for i in prange(4):
+            self.particles[i, :, :] = np.roll(self.particles[i, :, :], self.rollinput[i, 0], self.rollinput[i, 1])
 
 
     def collision_step(self):
