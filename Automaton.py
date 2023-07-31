@@ -6,7 +6,9 @@ import cv2
 import csv
 import datetime
 import sys
+import time
 import concurrent.futures
+import os
 
 class Automaton :
     """
@@ -35,6 +37,7 @@ class Automaton :
     def step(self):
         return NotImplementedError('Please subclass "Automaton" class, and define self.step')
     
+
     @property
     def worldmap(self):
         return (255*self._worldmap).astype(dtype=np.uint8)
@@ -47,54 +50,71 @@ class SMCA(Automaton):
         Parameters :
         <put them as I go>
     """
-    nsteps = 20   # After nsteps the code gives you a statistics of lattice state
+    nsteps = 100
+
 
     def __init__(self, size, is_countinglumps = True):
         super().__init__(size)
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(4,self.w,self.h) # (4,W,H)
-        # self.particles = np.where(self.particles>1.7,1,0).astype(np.int16)
-        self.particles = np.where(self.particles>1.7,1,0).astype(np.int16)
+        self.particles = np.where(self.particles>1.5,1,0).astype(np.int16)
         #self.particles[:,100:190,40:60]=1
         self.is_countinglumps = is_countinglumps
+        self.t_propagation = self.t_collision = self.t_lumpcalc = self.t_worldmap = self.t_step = 0
         self.steps_cnt = 0
-        self.relative_path = "./CSV/"   #The name of folder in which csv files willl be saved  #! You must have a folder with the same name in your project folder
-        self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])  # Contains arrays of the direction North,West,South,East
-        self.rollinput = np.array([[-1,1],[-1,0],[1,1],[1,0]])   # Contains np.roll(,•,•) input for North,West,South,East
-        # This part creates two csv files one for average size of the clumps and the other for the histogram:
         if self.is_countinglumps:
+            self.output_dir = "./csv/"
+            if not os.path.exists(self.output_dir):
+                os.mkdir(self.output_dir)
             self.filename_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-            self.filename_avglumpsize = self.relative_path + self.filename_timestamp + "_avglumpsize.csv"
-            self.filename_lumpsizehist = self.relative_path + self.filename_timestamp + "_lumpsizehistogram.csv"
+            self.filename_avglumpsize = self.output_dir + self.filename_timestamp + "_avglumpsize.csv"
+            self.filename_lumpsizehist = self.output_dir + self.filename_timestamp + "_lumpsizehistogram.csv"
             with open(self.filename_avglumpsize, 'x') as file:
                 pass
             with open(self.filename_lumpsizehist, 'x') as file:
                 pass
-        
-    def propagation_step(self):
-        """
-            Does the propagation step of the automaton
-        """
-        # * version 1 of propagation.
-        # self.particles = propagation_cpu(self.particles,self.w,self.h,self.dir)
-        # * version 2 of propagation. This is much faster but less versatile.
-        a = propagation_cpu(self.particles,self.w,self.h,self.dir)
-        self.propagation_step_v2()
-        if np.subtract(a[0,:,:], self.particles[0,:,:]).any():
-            raise ValueError("Propagation methods v1 and v2 yield differen results!")
-        
-    def propagation_step_v2(self):
-        for i in prange(4):
-            self.particles[i, :, :] = np.roll(self.particles[i, :, :], self.rollinput[i, 0], self.rollinput[i, 1])
+        # Contains in arrays the direction North,West,South,East
+        self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])
+        # [shift, axis] pairs as input to np.roll(, shift, axis) for North,West,South,East
+        self.rollinput = np.array([[-1,1], [-1,0], [1,1], [1,0]])
 
 
     def collision_step(self):
         """
             Does the collision step of the automaton
         """
-        self.particles = collision_cpu(self.particles,self.w,self.h,self.dir)
+        self.particles= \
+            collision_cpu(self.particles, self.w, self.h, self.dir)
+        # self.particles= \
+        #     collision_cpu_v2(self.particles, self.w, self.h, self.dir)
 
 
+    def propagation_step(self):
+        """
+            Does the propagation step of the automaton
+        """
+        # a = propagation_cpu(self.particles,self.w,self.h,self.dir)
+        # self.propagation_step_v2()
+        # if np.subtract(a, self.particles).any():
+        #     raise ValueError("Propagation methods v1 and v2 produce different results!")
+        # self.particles = \
+        #     propagation_cpu(self.particles,self.w,self.h,self.dir)
+        self.propagation_step_v2()
+    
+
+    def propagation_step_v2(self):
+        for i in prange(4):
+            self.particles[i, :, :] = np.roll(self.particles[i, :, :], self.rollinput[i, 0], self.rollinput[i, 1])
+
+
+    # This is slower than propagation_step_v2() at least for a 1800x900 grid
+    def propagation_step_v3(self):
+        with concurrent.futures.ThreadPoolExecutor(4) as executor:
+            out = list(executor.map(np.roll, self.particles[[0,1,2,3],:,:], self.rollinput[:,0], self.rollinput[:,1]))
+        self.particles = np.array(out)
+        # self.particles = np.array(list(out)) # this is slower than np.array(out)
+
+    
     def count_lupms(self):
         with concurrent.futures.ThreadPoolExecutor(4) as executor:
             out = list(executor.map(count_lupms_aux, self.particles[[0,1,2,3],:,:]))
@@ -114,41 +134,118 @@ class SMCA(Automaton):
                 csv.writer(f).writerow(dirs[i])
                 csv.writer(f).writerow(bins[i])
                 csv.writer(f).writerow(hist[i])
-        
+
 
     def step(self):
         """
             Steps the automaton state by one iteration.
         """
+        t0 = t0_cycle = time.time()
         self.propagation_step()
+        self.t_propagation += time.time() - t0
+        t0 = time.time()
         self.collision_step()
-        self._worldmap = np.zeros_like(self._worldmap) #(3,W,H)
-        self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/4.))[:,:,None]
+        self.t_collision += time.time() - t0
+        t0 = time.time()
+        # (o) This is the original worldmap update, which is quite expensive (see profiling restuls).
+        # self._worldmap = np.zeros_like(self._worldmap) #(3,W,H)
+        # self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/4.))[:,:,None]
+        
+        # (i) This approach is much faster than the original approach, but slightly slower than njit version below.
+        # a = self.particles
+        # self._worldmap[:,:,0] = self._worldmap[:,:,1] = self._worldmap[:,:,2] = ne.evaluate('sum(a, 0)')/4.
+        
+        # (ii) This is the njit version which is the fastest.
+        self._worldmap = worldmapupdate_cpu(self.particles, self.w, self.h)
+        
+        self.t_worldmap += time.time() - t0
         if (self.steps_cnt % SMCA.nsteps == 0 and self.is_countinglumps):
+            t0 = time.time()
             self.count_lupms()
+            self.t_lumpcalc += time.time() - t0
+            self.t_step += time.time() - t0_cycle
+            print("="*80)
+            print("Step # = " + str(self.steps_cnt))
+            print("Propagation time = " + str(self.t_propagation))
+            print("Collision time = " + str(self.t_collision))
+            print("Lump calc time = " + str(self.t_lumpcalc))
+            print("Worldmap time = " + str(self.t_worldmap))
+            print("step() time = " + str(self.t_step))
+            self.t_propagation = self.t_collision = self.t_lumpcalc = self.t_worldmap = self.t_step = 0
+            t0_cycle = time.time()
         self.steps_cnt += 1
-
-
+        self.t_step += time.time() - t0_cycle
 
 
 def count_lupms_aux(colinear_particles):
     # this is required by cv2.connectedComponentsWithStats
     img = np.copy(colinear_particles).astype(np.uint8)
-    connectivity = 8 # Neighborhood connectivity (= 4 or 8)
+    connectivity = 4 # Neighborhood connectivity (= 4 or 8)
     (num_labels, labeled_img, stats, centroid) = \
         cv2.connectedComponentsWithStats(img, connectivity, cv2.CV_32S)
     # label=0 is always the background, so we begin from label=1
-    avg_size = stats[1:, cv2.CC_STAT_AREA].sum() / (num_labels-1)
-    hist = np.bincount(stats[1:, cv2.CC_STAT_AREA])
-    bins = np.arange(1, np.max(stats[1:, cv2.CC_STAT_AREA])+1)
+    try:
+        avg_size = stats[1:, cv2.CC_STAT_AREA].sum() / (num_labels-1)
+        hist = np.bincount(stats[1:, cv2.CC_STAT_AREA])
+        bins = np.arange(1, np.max(stats[1:, cv2.CC_STAT_AREA])+1)
+    except ValueError:
+        avg_size = 0
+        hist = bins = [0]
     return (avg_size, bins, hist[1:])
 
 
-
+@njit(parallel=True)
+def worldmapupdate_cpu(particles:np.ndarray, w, h):
+    worldmap = np.zeros(shape=(w, h, 3))
+    a = particles.sum(axis=0)*0.25
+    for i in prange(3):
+        worldmap[:,:,i] = a
+    return worldmap
 
 
 @njit(parallel=True)
-def collision_cpu(particles :np.ndarray,w,h,dirdico):
+def collision_cpu(particles:np.ndarray, w, h, dirdico):
+    partictot = particles.sum(axis=0) # (W,H)
+    newparticles = np.copy(particles)
+    #natural selection parameter
+    n = 20
+    # Particle collision
+    for x in prange(w):
+        for y in prange(h):
+            if(partictot[x,y]==2):
+                coherencyN = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,y+1] + particles[0,x+1,y]
+                coherencyS = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,y+1] + particles[2,x+1,y]
+                coherencyW = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,y+1] + particles[1,x+1,y]
+                coherencyE = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,y+1] + particles[3,x+1,y]
+                totaly = coherencyN - coherencyS
+                totalx = coherencyE - coherencyW
+                s = np.sqrt(totalx**2 + totaly**2)
+                #cross section 
+                sigma = s/(4*np.sqrt(2))
+                if(particles[0,x,y]==1 and particles[2,x,y]==1):
+                    #if s == 0 we can not defive cos and sin, so we eliminate this situation
+                    if s == 0:
+                        pass
+                    elif (np.random.uniform() <= (np.abs(totalx/s)**n)*sigma):
+                        newparticles[1,x,y]=particles[0,x,y]
+                        newparticles[3,x,y]=particles[2,x,y]
+                        newparticles[0,x,y]=0
+                        newparticles[2,x,y]=0
+                elif(particles[1,x,y]==1 and particles[3,x,y]==1):
+                    #if s == 0 we can not defive cos and sin, so we eliminate this situation
+                    if s == 0:
+                        pass
+                    elif(np.random.uniform() <= (np.abs(totaly/s)**n)*sigma):
+                        newparticles[0,x,y]=particles[1,x,y]
+                        newparticles[2,x,y]=particles[3,x,y]
+                        newparticles[1,x,y]=0
+                        newparticles[3,x,y]=0
+    return newparticles
+
+
+# TODO: remove njit for debugging purposes
+@njit(parallel=True)
+def collision_cpu_v2(particles :np.ndarray,w,h,dirdico):
     partictot = particles[:].sum(axis=0) # (W,H)
     newparticles = np.copy(particles)
     #natural selection parameter
@@ -163,15 +260,14 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
         for y in prange(h):
             #one-particle sticking interaction
             if (partictot[x,y] == 1):
-                yplus1 = (y+1)%h
-                xplus1 = (x+1)%w
 
                 #moving in N direction
                 if (particles[0,x,y] == 1):
-                    S = particles[2,x-1,y-1] + particles[2,x,y-1] + particles[2,xplus1,y-1]
-                    W = particles[1,x-1,y-1] + particles[1,x,y-1] + particles[1,xplus1,y-1]
-                    E = particles[3,x-1,y-1] + particles[3,x,y-1] + particles[3,xplus1,y-1]
+                    S = particles[2,x-1,y-1] + particles[2,x,y-1] + particles[2,x+1,y-1]
+                    W = particles[1,x-1,y-1] + particles[1,x,y-1] + particles[1,x+1,y-1]
+                    E = particles[3,x-1,y-1] + particles[3,x,y-1] + particles[3,x+1,y-1]
                     
+                    # There is a huge difference between setting S >= 3 and S >= 2
                     if (S >= 2 and W < 2 and E < 2):
                         if np.random.uniform() <= p:
                             newparticles[0,x,y] = 0
@@ -187,9 +283,9 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
 
                 #moving in W direction
                 elif (particles[1,x,y] == 1):
-                    E = particles[3,x-1,y-1] + particles[3,x-1,y] + particles[3,x-1,yplus1]
-                    N = particles[0,x-1,y-1] + particles[0,x-1,y] + particles[0,x-1,yplus1]
-                    S = particles[2,x-1,y-1] + particles[2,x-1,y] + particles[2,x-1,yplus1]
+                    E = particles[3,x-1,y-1] + particles[3,x-1,y] + particles[3,x-1,y+1]
+                    N = particles[0,x-1,y-1] + particles[0,x-1,y] + particles[0,x-1,y+1]
+                    S = particles[2,x-1,y-1] + particles[2,x-1,y] + particles[2,x-1,y+1]
 
                     if (E >= 2 and N < 2 and S < 2):
                         if np.random.uniform() <= p:
@@ -206,9 +302,9 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
 
                 #moving in S direction
                 elif (particles[2,x,y] == 1):
-                    N = particles[0,x-1,yplus1] + particles[0,x,yplus1] + particles[0,xplus1,yplus1]
-                    W = particles[1,x-1,yplus1] + particles[1,x,yplus1] + particles[1,xplus1,yplus1]
-                    E = particles[3,x-1,yplus1] + particles[3,x,yplus1] + particles[3,xplus1,yplus1]
+                    N = particles[0,x-1,y+1] + particles[0,x,y+1] + particles[0,x+1,y+1]
+                    W = particles[1,x-1,y+1] + particles[1,x,y+1] + particles[1,x+1,y+1]
+                    E = particles[3,x-1,y+1] + particles[3,x,y+1] + particles[3,x+1,y+1]
 
                     if (N >= 2 and W < 2 and E < 2):
                         if np.random.uniform() <= p:
@@ -225,9 +321,9 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
 
                 #moving in E direction
                 elif (particles[3,x,y] == 1):
-                    W = particles[1,xplus1,y-1] + particles[1,xplus1,y] + particles[1,xplus1,yplus1]
-                    N = particles[0,xplus1,y-1] + particles[0,xplus1,y] + particles[0,xplus1,yplus1]
-                    S = particles[2,xplus1,y-1] + particles[2,xplus1,y] + particles[2,xplus1,yplus1]
+                    W = particles[1,x+1,y-1] + particles[1,x+1,y] + particles[1,x+1,y+1]
+                    N = particles[0,x+1,y-1] + particles[0,x+1,y] + particles[0,x+1,y+1]
+                    S = particles[2,x+1,y-1] + particles[2,x+1,y] + particles[2,x+1,y+1]
 
                     if (W >= 2 and N < 2 and S < 2):
                         if np.random.uniform() <= p:
@@ -241,74 +337,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                         if np.random.uniform() <= p:
                             newparticles[3,x,y] = 0
                             newparticles[2,x,y] = 1
-            
-            #two-particle scattering interaction
-            elif(partictot[x,y] == 2):
-                #weight of the first neighbour and weight of the second neighbour 
-                p1 = 1
-                p2 = -0.5
-                yplus1 = (y+1)%h
-                xplus1 = (x+1)%w
-                yplus2 = (y+2)%h
-                xplus2 = (x+2)%w
-                coherencyN1 = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,yplus1] + particles[0,xplus1,y] \
-                + particles[0,x-1,y-1] + particles[0,x-1,yplus1] + particles[0,xplus1,y-1] + particles[0,xplus1,yplus1]
-                coherencyS1 = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,yplus1] + particles[2,xplus1,y] \
-                + particles[2,x-1,y-1] + particles[2,x-1,yplus1] + particles[2,xplus1,y-1] + particles[2,xplus1,yplus1]
-                coherencyW1 = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,yplus1] + particles[1,xplus1,y] \
-                + particles[1,x-1,y-1] + particles[1,x-1,yplus1] + particles[1,xplus1,y-1] + particles[1,xplus1,yplus1]
-                coherencyE1 = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,yplus1] + particles[3,xplus1,y] \
-                + particles[3,x-1,y-1] + particles[3,x-1,yplus1] + particles[3,xplus1,y-1] + particles[3,xplus1,yplus1]
-                
-                coherencyN2 = particles [0,x-2,y-2] + particles[0,x-1,y-2] + particles[0,x,y-2] + particles[0,xplus1,y-2] + particles[0,xplus2,y-2] \
-                    + particles[0,x-2,y-1] + particles[0,xplus2,y-1] \
-                    + particles[0,x-2,y] + particles[0,xplus2,y] \
-                    + particles[0,x-2,yplus1] + particles[0,xplus2,yplus1] \
-                    + particles [0,x-2,yplus2] + particles[0,x-1,yplus2] + particles[0,x,yplus2] + particles[0,xplus1,yplus2] + particles[0,xplus2,yplus2]
-                coherencyW2 = particles [1,x-2,y-2] + particles[1,x-1,y-2] + particles[1,x,y-2] + particles[1,xplus1,y-2] + particles[1,xplus2,y-2] \
-                    + particles[1,x-2,y-1] + particles[1,xplus2,y-1] \
-                    + particles[1,x-2,y] + particles[1,xplus2,y] \
-                    + particles[1,x-2,yplus1] + particles[1,xplus2,yplus1] \
-                    + particles [1,x-2,yplus2] + particles[1,x-1,yplus2] + particles[1,x,yplus2] + particles[1,xplus1,yplus2] + particles[1,xplus2,yplus2]
-                coherencyS2 = particles [2,x-2,y-2] + particles[2,x-1,y-2] + particles[2,x,y-2] + particles[2,xplus1,y-2] + particles[2,xplus2,y-2] \
-                    + particles[2,x-2,y-1] + particles[2,xplus2,y-1] \
-                    + particles[2,x-2,y] + particles[2,xplus2,y] \
-                    + particles[2,x-2,yplus1] + particles[2,xplus2,yplus1] \
-                    + particles [2,x-2,yplus2] + particles[2,x-1,yplus2] + particles[2,x,yplus2] + particles[2,xplus1,yplus2] + particles[2,xplus2,yplus2]
-                coherencyE2 = particles [3,x-2,y-2] + particles[3,x-1,y-2] + particles[3,x,y-2] + particles[3,xplus1,y-2] + particles[3,xplus2,y-2] \
-                    + particles[3,x-2,y-1] + particles[3,xplus2,y-1] \
-                    + particles[3,x-2,y] + particles[3,xplus2,y] \
-                    + particles[3,x-2,yplus1] + particles[3,xplus2,yplus1] \
-                    + particles [3,x-2,yplus2] + particles[3,x-1,yplus2] + particles[3,x,yplus2] + particles[3,xplus1,yplus2] + particles[3,xplus2,yplus2]
-                totaly = p1*(coherencyN1 - coherencyS1) + p2*(coherencyN2 - coherencyS2)
-                totalx = p1*(coherencyE1 - coherencyW1) + p2*(coherencyE2 - coherencyW2)
-                s = np.sqrt(totalx**2 + totaly**2)
-                #normalized cross section
-                sigma = s/(np.sqrt(2)*(np.abs(p1)*8+np.abs(p2)*16))
-
-                if(particles[0,x,y]==1 and particles[2,x,y]==1):
-                    #if s == 0 we can not define cos and sin, so we eliminate this situation
-                    if s == 0:
-                        pass
-                    elif (np.random.uniform() <= (np.abs(totalx/s)**n)*sigma):
-                        newparticles[1,x,y]=particles[0,x,y]
-                        newparticles[3,x,y]=particles[2,x,y]
-                        newparticles[0,x,y]=0
-                        newparticles[2,x,y]=0
-                elif(particles[1,x,y]==1 and particles[3,x,y]==1):
-                    #if s == 0 we can not define cos and sin, so we eliminate this situation
-                    if s == 0:
-                        pass
-                    elif(np.random.uniform() <= (np.abs(totaly/s)**n)*sigma):
-                        newparticles[0,x,y]=particles[1,x,y]
-                        newparticles[2,x,y]=particles[3,x,y]
-                        newparticles[1,x,y]=0
-                        newparticles[3,x,y]=0
     return newparticles
-
-
-
-
 
 
 @njit(parallel=True)
@@ -322,12 +351,6 @@ def propagation_cpu(particles,w,h,dirdico):
                 if(particles[dir,x,y]==1):
                     newparticles[dir,newpos[0],newpos[1]]=particles[dir,x,y]
     return newparticles
-
-
-
-
-
-
 
 
 """
