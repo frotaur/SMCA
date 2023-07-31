@@ -1,7 +1,6 @@
 import numpy as np
 from numba import njit, prange,cuda 
 import numba.typed as numt
-import random
 import cv2
 import csv
 import datetime
@@ -27,9 +26,9 @@ class Automaton :
     def __init__(self,size):
         self.w, self.h  = size
         self.size = size
-        # This self._worldmap should be changed in the step function.
+        # ! This self._worldmap should be changed in the step function.
         # It should contains floats from 0 to 1 of RGB values.
-        self._worldmap = np.random.uniform(size=(self.w,self.h,3))
+        self._worldmap = np.random.uniform(size=(self.w,self.h,3)) # W, H, 3
     
 
     def step(self):
@@ -45,25 +44,24 @@ class SMCA(Automaton):
         Standard Model Cellular Automaton. Inspired by LGCA.
 
         Parameters :
-        <put them as I go>
+                    First argument: (W,H) tuple for the size of cellur automaton
+                    Second argument: Boolean. It is by default True and If you put False it does not give you the statistics. 
     """
-    nsteps = 20   # After nsteps the code gives you a statistics of lattice state
 
-    def __init__(self, size, is_countinglumps = True):
+    def __init__(self, size, is_countingclumps = True): # size = (W,H)
         super().__init__(size)
+        self.steps_cnt = 0
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
         self.particles = np.random.randn(5,self.w,self.h) 
         copy_rest_particles = self.particles[4:5,:,:]
         self.particles = np.append(self.particles, copy_rest_particles, axis = 0) # (6,w,h) in which the last two components are for the rest paticles
-        self.particles = np.where(self.particles > 1.6,1,0).astype(np.int16)
-        #self.particles[:,100:190,40:60]=1
-        self.is_countinglumps = is_countinglumps
-        self.steps_cnt = 0
-        self.relative_path = "./CSV/"   #The name of folder in which csv files willl be saved  #! You must have a folder with the same name in your project folder
+        self.particles = np.where(self.particles > 1.7,1,0).astype(np.int16)
         self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])  # Contains arrays of the direction North,West,South,East
-        self.rollinput = np.array([[-1,0],[-1,1],[1,0],[1,1]])   # Contains np.roll(,•,•) input for North,West,South,East
         # This part creates two csv files one for average size of the clumps and the other for the histogram:
-        if self.is_countinglumps:
+        self.is_countingclumps = is_countingclumps
+        if self.is_countingclumps:
+            self.nsteps = 100   # After n steps the code gives you a statistics of lattice state
+            self.relative_path = "./CSV/"   #The name of folder in which csv files willl be saved  #! You must have a folder with the same name in your project folder
             self.filename_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             self.filename_avglumpsize = self.relative_path + self.filename_timestamp + "_avglumpsize.csv"
             self.filename_lumpsizehist = self.relative_path + self.filename_timestamp + "_lumpsizehistogram.csv"
@@ -71,19 +69,26 @@ class SMCA(Automaton):
                 pass
             with open(self.filename_lumpsizehist, 'x') as file:
                 pass
+    
+    
+    def step(self):
+        """
+            Steps the automaton state by one iteration.
+        """
+        self.propagation_step()
+        self.collision_step()
+        self._worldmap = np.zeros_like(self._worldmap) #(W,H,3)
+        self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/6.))[:,:,None]
+        if (self.is_countingclumps and self.steps_cnt % self.nsteps == 0):
+            self.count_clupms()
+        self.steps_cnt += 1
+        
         
     def propagation_step(self):
         """
             Does the propagation step of the automaton
         """
-        # * version 1 of propagation.
         self.particles = propagation_cpu(self.particles,self.w,self.h,self.dir)
-        # * version 2 of propagation. This is much faster but less versatile.
-        #self.propagation_step_v2()
-        
-    # def propagation_step_v2(self):
-    #     for i in prange(4):
-    #         self.particles[i, :, :] = np.roll(self.particles[i, :, :], self.rollinput[i, 0], self.rollinput[i, 1])
 
 
     def collision_step(self):
@@ -93,48 +98,37 @@ class SMCA(Automaton):
         self.particles = collision_cpu(self.particles,self.w,self.h,self.dir)
 
 
-    def count_lupms(self):
-        with concurrent.futures.ThreadPoolExecutor(4) as executor:
-            out = list(executor.map(count_lupms_aux, self.particles[[0,1,2,3],:,:]))
+    def count_clupms(self):
+        """
+            Gives you the statistics of the lattice state including a file for the average size clumps and a file for the histogram of clumps size
+        """
+        with concurrent.futures.ThreadPoolExecutor(6) as executor:
+            out = list(executor.map(count_clupms_aux, self.particles[[0,1,2,3,4,5],:,:]))
         avg_lump_sizes = [tpl[0] for tpl in out]
         bins = [tpl[1] for tpl in out]
         hist = [tpl[2] for tpl in out]
-        dirs = [["NORTH"], ["WEST"], ["SOUTH"], ["EAST"]]
+        dirs = [["NORTH"], ["WEST"], ["SOUTH"], ["EAST"], ["REST1"], ["REST2"]]
         print("="*80)
         print("Step # = " + str(self.steps_cnt))
-        print("Averge lump sizes: NORTH, WEST, SOUTH, EAST")
+        print("Averge clump sizes: NORTH, WEST, SOUTH, EAST, REST1, REST2")
         csv.writer(sys.stdout).writerow(avg_lump_sizes)
         with open(self.filename_avglumpsize, 'a', encoding='UTF8', newline='') as f:
             csv.writer(f).writerow(avg_lump_sizes)
         with open(self.filename_lumpsizehist , 'a', encoding='UTF8', newline='') as f:
             csv.writer(f).writerow([self.steps_cnt])
-            for i in prange(4):
+            for i in prange(len(self.particles)):
                 csv.writer(f).writerow(dirs[i])
                 csv.writer(f).writerow(bins[i])
                 csv.writer(f).writerow(hist[i])
-        
-
-    def step(self):
-        """
-            Steps the automaton state by one iteration.
-        """
-        self.propagation_step()
-        self.collision_step()
-        self._worldmap = np.zeros_like(self._worldmap) #(3,W,H)
-        self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/6.))[:,:,None]
-        if (self.steps_cnt % SMCA.nsteps == 0 and self.is_countinglumps):
-            self.count_lupms()
-        self.steps_cnt += 1
 
 
 
 
-def count_lupms_aux(colinear_particles):
+def count_clupms_aux(colinear_particles):
     # this is required by cv2.connectedComponentsWithStats
     img = np.copy(colinear_particles).astype(np.uint8)
     connectivity = 8 # Neighborhood connectivity (= 4 or 8)
-    (num_labels, labeled_img, stats, centroid) = \
-        cv2.connectedComponentsWithStats(img, connectivity, cv2.CV_32S)
+    (num_labels, labeled_img, stats, centroid) = cv2.connectedComponentsWithStats(img, connectivity, cv2.CV_32S)
     # label=0 is always the background, so we begin from label=1
     try:
         avg_size = stats[1:, cv2.CC_STAT_AREA].sum() / (num_labels-1)
@@ -144,8 +138,6 @@ def count_lupms_aux(colinear_particles):
         avg_size = 0
         bins = hist = [0]
     return (avg_size, bins, hist[1:])
-
-
 
 
 
@@ -379,7 +371,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 # sigma = s/(np.sqrt(4)*(np.abs(p1)*8+np.abs(p2)*16))
                 s = np.sqrt(totalx**2 + totaly**2)
                 sigma = s/(np.sqrt(2)*(np.abs(p1)*8+np.abs(p2)*16))
-                #two particles with opposite positions come and rest after the collision: 
+                #two particles with opposite momentums come and rest after the collision: 
                 if ((partictot_rest[x,y] == 0) and ((particles[0,x,y] == 1 and particles[2,x,y] == 1) or (particles[1,x,y] == 1 and particles[3,x,y] == 1)) and
                     (np.random.uniform() < 0.8 + (np.abs(totalz/s)**n)*sigma)): # 0.8 is just a manual number to help that this happens more
                         newparticles[0,x,y] = newparticles[1,x,y] = newparticles[2,x,y] = newparticles[3,x,y] = 0
@@ -440,32 +432,3 @@ def propagation_cpu(particles,w,h,dirdico):
                 newparticles[dir,newpos[0],newpos[1]] = particles[dir,x,y]
                 
     return newparticles
-
-
-
-
-
-
-
-
-"""
-@cuda.jit
-def propagation_cuda(partic_t1,partic_t2,dirvecs):
-    
-        Propagation step in cuda. NOT YET WORKING
-        Params : 
-        partic_t1 : current state of the world
-        partic_t2 : array of zeros, will be filled with the particles
-        dirvec : vector of directions
-
-        TODO : share the memory of dirvecs
-    
-    x,y = cuda.grid(2)
-    if(x<partic_t1.shape[0] and y<partic_t1.shape[1]):
-        loc = np.array([x,y])
-        for dir in range(4):
-            if(partic_t1[dir][x][y]==1):
-                newpos = (loc+dirvecs[dir])%np.array([w,h])
-                partic_t2[dir][newpos[0],newpos[1]]=1
-
-"""
