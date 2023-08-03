@@ -153,7 +153,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     #probability of sticking
     p = 1
     # As m becomes bigger, rest particles become more stable. 
-    m = 3
+    m = 1.7
     # l should be [0,+infinite): As l becomes smaller, The probability of getting rest for two particles coming from opposite direction increases
     l = 0.1
     # Particle collision
