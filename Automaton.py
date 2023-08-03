@@ -159,7 +159,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     # Particle collision
     for x in prange(w):
         for y in prange(h):
-            #one-particle sticking interaction
+            #one-particle interaction
             if (partictot_moving[x,y] == 1):
                 #weight of the first neighbour and weight of the second neighbour 
                 p1 = 1
@@ -309,7 +309,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                             newparticles[3,x,y] = 0
                             newparticles[2,x,y] = 1
             
-            #two particle scattering interaction
+            #two particle interaction
             elif(partictot_moving[x,y] == 2):
                 #weight of the first neighbour and weight of the second neighbour 
                 p1 = 1
@@ -397,6 +397,29 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                         newparticles[2,x,y]=1
                         newparticles[1,x,y]=0
                         newparticles[3,x,y]=0
+                
+                #sticking to the rest particles
+                elif(particles[0,x,y] == 1 and particles[1,x,y] == 1 and partictot_rest[x,y] == 0):
+                    if ((particles[4,x-1,y] + particles[4,x,y-1] + particles[4,x-1,y-1]) >= 2):
+                        if np.random.uniform() <= p:
+                            newparticles[0,x,y] = newparticles[1,x,y] = 0
+                            newparticles[4,x,y] = newparticles[5,x,y] = 1
+                elif(particles[1,x,y] == 1 and particles[2,x,y] == 1 and partictot_rest[x,y] == 0):
+                    if ((particles[4,x-1,y] + particles[4,x,y+1] + particles[4,x-1,y+1]) >= 2):
+                        if np.random.uniform() <= p:
+                            newparticles[1,x,y] = newparticles[2,x,y] = 0
+                            newparticles[4,x,y] = newparticles[5,x,y] = 1
+                elif(particles[2,x,y] == 1 and particles[3,x,y] == 1 and partictot_rest[x,y] == 0):
+                    if ((particles[4,x+1,y] + particles[4,x,y+1] + particles[4,x+1,y+1]) >= 2):
+                        if np.random.uniform() <= p:
+                            newparticles[2,x,y] = newparticles[3,x,y] = 0
+                            newparticles[4,x,y] = newparticles[5,x,y] = 1
+                elif(particles[3,x,y] == 1 and particles[0,x,y] == 1 and partictot_rest[x,y] == 0):
+                    if ((particles[4,x+1,y] + particles[4,x,y-1] + particles[4,x+1,y-1]) >= 2):
+                        if np.random.uniform() <= p:
+                            newparticles[3,x,y] = newparticles[0,x,y] = 0
+                            newparticles[4,x,y] = newparticles[5,x,y] = 1           
+                            
                                         
     return newparticles
 
