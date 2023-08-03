@@ -152,9 +152,10 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     n = 10
     #probability of sticking
     p = 1
-    # The maximum possible value for the cross section
-    simga_max = 1
-
+    # As m becomes bigger, rest particles become more stable. 
+    m = 3
+    # l should be [0,+infinite): As l becomes smaller, The probability of getting rest for two particles coming from opposite direction increases
+    l = 0.1
     # Particle collision
     for x in prange(w):
         for y in prange(h):
@@ -162,7 +163,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
             if (partictot_moving[x,y] == 1):
                 #weight of the first neighbour and weight of the second neighbour 
                 p1 = 1
-                p2 = -0.5
+                p2 = 0
                 yplus1 = (y+1)%h
                 xplus1 = (x+1)%w
                 yplus2 = (y+2)%h
@@ -215,13 +216,12 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 totaly = p1*(coherencyN1 - coherencyS1) + p2*(coherencyN2 - coherencyS2)
                 totalx = p1*(coherencyE1 - coherencyW1) + p2*(coherencyE2 - coherencyW2)
                 totalz = p1*coherencyR1 + p2*coherencyR2
-                # s = np.sqrt(totalx**2 + totaly**2 + totalz**2)
-                # #normalized cross section
-                # sigma = s/(np.sqrt(4)*(np.abs(p1)*8+np.abs(p2)*16))
-                s = np.sqrt(totalx**2 + totaly**2)
-                sigma = s/(np.sqrt(2)*(np.abs(p1)*8+np.abs(p2)*16))
-                #One particle comes and force two particles move:
-                if (partictot_rest[x,y] == 2 and np.random.uniform() < ((1-(np.abs(totalz/s)**n)*sigma)*0.15) ): # the multiplication by 0.15 is just for help to make the rest particles more stable
+                s = np.sqrt(totalx**2 + totaly**2 + totalz**2)
+                #normalized cross section
+                sigma = s/(np.sqrt(4)*(np.abs(p1)*8+np.abs(p2)*16))
+                
+                # One particle comes and force two particles to move: 
+                if (partictot_rest[x,y] == 2 and np.random.uniform() < (1-np.abs(totalz/s))**m): 
 
                     if (particles[0,x,y] == 1 or particles[2,x,y] == 1):
                         newparticles[4,x,y] = 0
@@ -313,7 +313,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
             elif(partictot_moving[x,y] == 2):
                 #weight of the first neighbour and weight of the second neighbour 
                 p1 = 1
-                p2 = -0.5
+                p2 = 0
                 yplus1 = (y+1)%h
                 xplus1 = (x+1)%w
                 yplus2 = (y+2)%h
@@ -366,53 +366,37 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 totaly = p1*(coherencyN1 - coherencyS1) + p2*(coherencyN2 - coherencyS2)
                 totalx = p1*(coherencyE1 - coherencyW1) + p2*(coherencyE2 - coherencyW2)
                 totalz = p1*coherencyR1 + p2*coherencyR2
-                # s = np.sqrt(totalx**2 + totaly**2 + totalz**2)
-                # #normalized cross section
-                # sigma = s/(np.sqrt(4)*(np.abs(p1)*8+np.abs(p2)*16))
-                s = np.sqrt(totalx**2 + totaly**2)
-                sigma = s/(np.sqrt(2)*(np.abs(p1)*8+np.abs(p2)*16))
+                s = np.sqrt(totalx**2 + totaly**2 + totalz**2)
+                #normalized cross section
+                sigma = s/(np.sqrt(4)*(np.abs(p1)*8+np.abs(p2)*16))
                 #two particles with opposite momentums come and rest after the collision: 
                 if ((partictot_rest[x,y] == 0) and ((particles[0,x,y] == 1 and particles[2,x,y] == 1) or (particles[1,x,y] == 1 and particles[3,x,y] == 1)) and
-                    (np.random.uniform() < 0.8 + (np.abs(totalz/s)**n)*sigma)): # 0.8 is just a manual number to help that this happens more
+                    (np.random.uniform() < np.abs(totalz/s)**l)):
                         newparticles[0,x,y] = newparticles[1,x,y] = newparticles[2,x,y] = newparticles[3,x,y] = 0
                         newparticles[4,x,y] = newparticles[5,x,y] = 1
 
                 elif(particles[0,x,y]==1 and particles[2,x,y]==1):
-                    #if s == 0 we can not define cos and sin, so we eliminate this situation
                     if s == 0:
-                        newparticles[1,x,y]=particles[0,x,y]
-                        newparticles[3,x,y]=particles[2,x,y]
+                        newparticles[1,x,y]=1
+                        newparticles[3,x,y]=1
                         newparticles[0,x,y]=0
                         newparticles[2,x,y]=0
                     elif (np.random.uniform() <= (np.abs(totalx/s)**n)*sigma):
-                        newparticles[1,x,y]=particles[0,x,y]
-                        newparticles[3,x,y]=particles[2,x,y]
+                        newparticles[1,x,y]=1
+                        newparticles[3,x,y]=1
                         newparticles[0,x,y]=0
                         newparticles[2,x,y]=0
                 elif(particles[1,x,y]==1 and particles[3,x,y]==1):
-                    #if s == 0 we can not define cos and sin, so we eliminate this situation
                     if s == 0:
-                        newparticles[0,x,y]=particles[1,x,y]
-                        newparticles[2,x,y]=particles[3,x,y]
+                        newparticles[0,x,y]=1
+                        newparticles[2,x,y]=1
                         newparticles[1,x,y]=0
                         newparticles[3,x,y]=0
                     elif(np.random.uniform() <= (np.abs(totaly/s)**n)*sigma):
-                        newparticles[0,x,y]=particles[1,x,y]
-                        newparticles[2,x,y]=particles[3,x,y]
+                        newparticles[0,x,y]=1
+                        newparticles[2,x,y]=1
                         newparticles[1,x,y]=0
                         newparticles[3,x,y]=0
-            
-            #four particles:
-            elif(partictot_moving[x,y] == 4):
-                if partictot_rest == 0:
-                    if np.random.uniform() < 0.5:
-                        newparticles[0,x,y] = newparticles[2,x,y] = 1
-                        newparticles[1,x,y] = newparticles[3,x,y] = 0
-                        newparticles[4,x,y] = newparticles[5,x,y] = 1
-                    else:
-                        newparticles[0,x,y] = newparticles[2,x,y] = 0
-                        newparticles[1,x,y] = newparticles[3,x,y] = 1
-                        newparticles[4,x,y] = newparticles[5,x,y] = 1
                                         
     return newparticles
 

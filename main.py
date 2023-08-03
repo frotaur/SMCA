@@ -4,7 +4,6 @@ from Automaton import *
 import cv2
 import os
 
-os.system('clear')
 
 # Initialize the pygame screen 
 pygame.init()
@@ -18,8 +17,8 @@ camera = Camera(W,H)
 world_state = np.random.randint(0,255,(W,H,3),dtype=np.uint8)
 
 # Initialize the automaton
-#auto = SMCA((W,H))
-auto = SMCA((W,H), True)
+
+auto = SMCA((W,H), False) # If you want not to monitor the statistics of the evolution set the second argument False.
 updating = True
 recording = False
 launch_video = False
