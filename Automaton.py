@@ -52,10 +52,12 @@ class SMCA(Automaton):
         super().__init__(size)
         self.steps_cnt = 0
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
-        self.particles = np.random.randn(5,self.w,self.h) 
-        copy_rest_particles = self.particles[4:5,:,:]
-        self.particles = np.append(self.particles, copy_rest_particles, axis = 0) # (6,w,h) in which the last two components are for the rest paticles
-        self.particles = np.where(self.particles > 1.7,1,0).astype(np.int16)
+        self.neutrons = np.random.randn(5,self.w,self.h) 
+        copy_rest_particles = self.neutrons[4:5,:,:]
+        self.neutrons = np.append(self.neutrons, copy_rest_particles, axis = 0) # (6,w,h) in which the last two components are for the rest paticles
+        self.protons = self.neutrons
+        self.neutrons = np.where(self.neutrons > 1.7,1,0).astype(np.int16)
+        self.protons = np.where(self.protons < -1.7,1,0).astype(np.int16)
         self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])  # Contains arrays of the direction North,West,South,East
         # This part creates two csv files one for average size of the clumps and the other for the histogram:
         self.is_countingclumps = is_countingclumps
@@ -78,7 +80,8 @@ class SMCA(Automaton):
         self.propagation_step()
         self.collision_step()
         self._worldmap = np.zeros_like(self._worldmap) #(W,H,3)
-        self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/6.))[:,:,None]
+        self._worldmap[:,:,2]+=((self.neutrons.sum(axis=0)/6.))[:,:]
+        self._worldmap[:,:,0]+=((self.protons.sum(axis=0)/6.))[:,:]
         if (self.is_countingclumps and self.steps_cnt % self.nsteps == 0):
             self.count_clupms()
         self.steps_cnt += 1
@@ -88,14 +91,14 @@ class SMCA(Automaton):
         """
             Does the propagation step of the automaton
         """
-        self.particles = propagation_cpu(self.particles,self.w,self.h,self.dir)
+        self.neutrons,self.protons = propagation_cpu(self.neutrons,self.protons,self.w,self.h,self.dir)
 
 
     def collision_step(self):
         """
             Does the collision step of the automaton
         """
-        self.particles = collision_cpu(self.particles,self.w,self.h,self.dir)
+        self.neutrons = collision_cpu(self.neutrons,self.w,self.h,self.dir)
 
 
     def count_clupms(self):
@@ -103,7 +106,7 @@ class SMCA(Automaton):
             Gives you the statistics of the lattice state including a file for the average size clumps and a file for the histogram of clumps size
         """
         with concurrent.futures.ThreadPoolExecutor(6) as executor:
-            out = list(executor.map(count_clupms_aux, self.particles[[0,1,2,3,4,5],:,:]))
+            out = list(executor.map(count_clupms_aux, self.neutrons[[0,1,2,3,4,5],:,:]))
         avg_lump_sizes = [tpl[0] for tpl in out]
         bins = [tpl[1] for tpl in out]
         hist = [tpl[2] for tpl in out]
@@ -116,7 +119,7 @@ class SMCA(Automaton):
             csv.writer(f).writerow(avg_lump_sizes)
         with open(self.filename_lumpsizehist , 'a', encoding='UTF8', newline='') as f:
             csv.writer(f).writerow([self.steps_cnt])
-            for i in prange(len(self.particles)):
+            for i in prange(len(self.neutrons)):
                 csv.writer(f).writerow(dirs[i])
                 csv.writer(f).writerow(bins[i])
                 csv.writer(f).writerow(hist[i])
@@ -429,13 +432,15 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
 
 
 @njit(parallel=True)
-def propagation_cpu(particles,w,h,dirdico):
-    newparticles=np.copy(particles)
+def propagation_cpu(particles1,particles2,w,h,dirdico):
+    newparticles1=np.copy(particles1)
+    newparticles2=np.copy(particles2)
     for x in prange(w):
         for y in prange(h):
             loc = np.array([x,y])
             for dir in range(4):
                 newpos = (loc+dirdico[dir])%np.array([w,h])
-                newparticles[dir,newpos[0],newpos[1]] = particles[dir,x,y]
-                
-    return newparticles
+                newparticles1[dir,newpos[0],newpos[1]] = particles1[dir,x,y]
+                newparticles2[dir,newpos[0],newpos[1]] = particles2[dir,x,y]
+
+    return newparticles1, newparticles2
