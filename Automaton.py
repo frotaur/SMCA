@@ -52,10 +52,19 @@ class SMCA(Automaton):
         super().__init__(size)
         self.steps_cnt = 0
         # 0,1,2,3 of the first dimension are the N,W,S,E directions
+        
+        #create a lattice in which there are some neutrons and protons randomly. 0: nothing, -1: proton, 1: neutron
         self.particles = np.random.randn(5,self.w,self.h) 
         copy_rest_particles = self.particles[4:5,:,:]
         self.particles = np.append(self.particles, copy_rest_particles, axis = 0) # (6,w,h) in which the last two components are for the rest paticles
-        self.particles = np.where(self.particles > 1.7,1,0).astype(np.int16)
+        threshhold = 1.7
+        tmp1 = self.particles <= threshhold
+        tmp2 = self.particles >= -threshhold
+        tmp3 = tmp1 * tmp2
+        self.particles = np.where(tmp3,0,self.particles).astype(np.int16)
+        self.particles = np.where(self.particles > threshhold,1,self.particles).astype(np.int16)
+        self.particles = np.where(self.particles < -threshhold,-1,self.particles).astype(np.int16)
+        
         self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])  # Contains arrays of the direction North,West,South,East
         # This part creates two csv files one for average size of the clumps and the other for the histogram:
         self.is_countingclumps = is_countingclumps
@@ -103,7 +112,7 @@ class SMCA(Automaton):
             Gives you the statistics of the lattice state including a file for the average size clumps and a file for the histogram of clumps size
         """
         with concurrent.futures.ThreadPoolExecutor(6) as executor:
-            out = list(executor.map(count_clupms_aux, self.particles[[0,1,2,3,4,5],:,:]))
+            out = list(executor.map(count_clupms_aux, np.abs(self.particles[[0,1,2,3,4,5],:,:])))
         avg_lump_sizes = [tpl[0] for tpl in out]
         bins = [tpl[1] for tpl in out]
         hist = [tpl[2] for tpl in out]
