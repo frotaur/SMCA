@@ -87,7 +87,10 @@ class SMCA(Automaton):
         self.propagation_step()
         self.collision_step()
         self._worldmap = np.zeros_like(self._worldmap) #(W,H,3)
-        self._worldmap[:,:,:]+=((self.particles.sum(axis=0)/6.))[:,:,None]
+        self.neutron = np.where((self.particles.sum(axis=0)/6) == 1,1,0)
+        self.proton = np.where((self.particles.sum(axis=0)/6) == 2,1,0)
+        self._worldmap[:,:,2]=(self.neutron)[:,:]
+        self._worldmap[:,:,0]=(self.proton)[:,:]
         if (self.is_countingclumps and self.steps_cnt % self.nsteps == 0):
             self.count_clupms()
         self.steps_cnt += 1
