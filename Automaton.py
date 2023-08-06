@@ -87,6 +87,7 @@ class SMCA(Automaton):
         """
         self.propagation_step()
         self.collision_step()
+        self.protonaction_step()
         self._worldmap = np.zeros_like(self._worldmap) #(W,H,3)
         self.neutron = np.where(self.particles == 1, 1, 0)
         self.proton = np.where(self.particles == -1, 1, 0)
@@ -109,7 +110,12 @@ class SMCA(Automaton):
             Does the collision step of the automaton
         """
         self.particles = collision_cpu(self.particles,self.w,self.h,self.dir)
-
+    
+    def protonaction_step(self):
+        """
+        Does the proton excusive attribute 
+        """
+        self.particles = protonaction_cpu(self.particles,self.w,self.h,self.dir)
 
     def count_clupms(self):
         """
@@ -498,14 +504,48 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                                         
     return newparticles
 
-
+@njit(parallel = True)
+def protonaction_cpu(particles :np.ndarray,w,h,dirdcio):
+    #w1 and w2 are the wegiht of first and second proton neighbours resepctly
+    w1 = 1
+    w2 = 0.5
+    #Threshhold after whihch there is a probability that proton suddenly filps its direction
+    threshhold = 3
+    newparticles = np.copy(particles)
+    absparticles = np.abs(particles)
+    partictot_moving = absparticles[0:4,:,:].sum(axis = 0)
+    partictot_rest = absparticles[4:6,:,:].sum(axis = 0)
+    proton = particles==-1
+    protontot = proton.sum(axis = 0)
+    for x in prange(w):
+        for y in prange(h):
+            for dir in range(4):
+                if particles[dir,x,y] == -1  and  partictot_moving[x,y] == 1:
+                    yplus1 = (y+1)%h
+                    xplus1 = (x+1)%w
+                    yplus2 = (y+2)%h
+                    xplus2 = (x+2)%w
+                    # The number of protons in the first neighbour of this proton 
+                    p1 = protontot[x,y-1] + protontot[x-1,y] + protontot[x,yplus1] + protontot[xplus1,y] + protontot[x-1,y-1] + protontot[x-1,yplus1] + protontot[xplus1,y-1] + protontot[xplus1,yplus1]
+                    # The number of protons in the second neighbour of this proton 
+                    p2 = protontot [x-2,y-2] + protontot[x-1,y-2] + protontot[x,y-2] + protontot[xplus1,y-2] + protontot[xplus2,y-2] \
+                    + protontot[x-2,y-1] + protontot[xplus2,y-1] \
+                    + protontot[x-2,y] + protontot[xplus2,y] \
+                    + protontot[x-2,yplus1] + protontot[xplus2,yplus1] \
+                    + protontot [x-2,yplus2] + protontot[x-1,yplus2] + protontot[x,yplus2] + protontot[xplus1,yplus2] + protontot[xplus2,yplus2]
+                    p_eff = w1*p1 + w2*p2
+                    if np.random.uniform() < (p_eff-threshhold)*0.3:
+                        newparticles[dir,x,y] = 0
+                        newparticles[np.random.choice(np.arange(4)),x,y] = -1
+                    
+    return newparticles
 
 
 
 
 @njit(parallel=True)
 def propagation_cpu(particles,w,h,dirdico):
-    newparticles=np.copy(particles)
+    newparticles=np.copy(particles) 
     for x in prange(w):
         for y in prange(h):
             loc = np.array([x,y])
