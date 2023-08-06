@@ -86,12 +86,12 @@ class SMCA(Automaton):
             Steps the automaton state by one iteration.
         """
         self.propagation_step()
-        # self.collision_step()
+        self.collision_step()
         self._worldmap = np.zeros_like(self._worldmap) #(W,H,3)
         self.neutron = np.where(self.particles == 1, 1, 0)
         self.proton = np.where(self.particles == -1, 1, 0)
-        self._worldmap[:,:,2]=(self.neutron.sum(axis = 0)/2.)[:,:]
-        self._worldmap[:,:,0]=(self.proton.sum(axis = 0)/2.)[:,:]
+        self._worldmap[:,:,2]=(self.neutron.sum(axis = 0)/1.)[:,:]
+        self._worldmap[:,:,0]=(self.proton.sum(axis = 0)/1.)[:,:]
         if (self.is_countingclumps and self.steps_cnt % self.nsteps == 0):
             self.count_clupms()
         self.steps_cnt += 1
@@ -156,17 +156,17 @@ def count_clupms_aux(colinear_particles):
 
 @njit(parallel=True)
 def collision_cpu(particles :np.ndarray,w,h,dirdico):
-    partictot_moving = particles[0:4,:,:].sum(axis=0) # (W,H)
-    partictot_rest = particles[4:6,:,:].sum(axis=0)  #(W,H)
-
-    
+    absparticles = np.abs(particles)
     newparticles = np.copy(particles)
+    partictot_moving = absparticles[0:4,:,:].sum(axis=0) # (W,H)
+    partictot_rest = absparticles[4:6,:,:].sum(axis=0)  #(W,H)
+
     #natural selection parameter
     n = 10
     #probability of sticking
     p = 1
     # As m becomes bigger, rest particles become more stable. 
-    m = 1.7
+    m = 2
     # l should be [0,+infinite): As l becomes smaller, The probability of getting rest for two particles coming from opposite direction increases
     l = 0.1
     # Particle collision
@@ -181,50 +181,50 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 xplus1 = (x+1)%w
                 yplus2 = (y+2)%h
                 xplus2 = (x+2)%w
-                # R means rest 
-                coherencyN1 = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,yplus1] + particles[0,xplus1,y] \
-                + particles[0,x-1,y-1] + particles[0,x-1,yplus1] + particles[0,xplus1,y-1] + particles[0,xplus1,yplus1]
-                coherencyS1 = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,yplus1] + particles[2,xplus1,y] \
-                + particles[2,x-1,y-1] + particles[2,x-1,yplus1] + particles[2,xplus1,y-1] + particles[2,xplus1,yplus1]
-                coherencyW1 = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,yplus1] + particles[1,xplus1,y] \
-                + particles[1,x-1,y-1] + particles[1,x-1,yplus1] + particles[1,xplus1,y-1] + particles[1,xplus1,yplus1]
-                coherencyE1 = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,yplus1] + particles[3,xplus1,y] \
-                + particles[3,x-1,y-1] + particles[3,x-1,yplus1] + particles[3,xplus1,y-1] + particles[3,xplus1,yplus1]
-                coherencyR1 = particles[4,x,y-1] + particles[4,x-1,y] + particles[4,x,yplus1] + particles[4,xplus1,y] \
-                + particles[4,x-1,y-1] + particles[4,x-1,yplus1] + particles[4,xplus1,y-1] + particles[4,xplus1,yplus1] \
-                + particles[5,x,y-1] + particles[5,x-1,y] + particles[5,x,yplus1] + particles[5,xplus1,y] \
-                + particles[5,x-1,y-1] + particles[5,x-1,yplus1] + particles[5,xplus1,y-1] + particles[5,xplus1,yplus1]
+                # R means rest
+                coherencyN1 = absparticles[0,x,y-1] + absparticles[0,x-1,y] + absparticles[0,x,yplus1] + absparticles[0,xplus1,y] \
+                + absparticles[0,x-1,y-1] + absparticles[0,x-1,yplus1] + absparticles[0,xplus1,y-1] + absparticles[0,xplus1,yplus1]
+                coherencyS1 = absparticles[2,x,y-1] + absparticles[2,x-1,y] + absparticles[2,x,yplus1] + absparticles[2,xplus1,y] \
+                + absparticles[2,x-1,y-1] + absparticles[2,x-1,yplus1] + absparticles[2,xplus1,y-1] + absparticles[2,xplus1,yplus1]
+                coherencyW1 = absparticles[1,x,y-1] + absparticles[1,x-1,y] + absparticles[1,x,yplus1] + absparticles[1,xplus1,y] \
+                + absparticles[1,x-1,y-1] + absparticles[1,x-1,yplus1] + absparticles[1,xplus1,y-1] + absparticles[1,xplus1,yplus1]
+                coherencyE1 = absparticles[3,x,y-1] + absparticles[3,x-1,y] + absparticles[3,x,yplus1] + absparticles[3,xplus1,y] \
+                + absparticles[3,x-1,y-1] + absparticles[3,x-1,yplus1] + absparticles[3,xplus1,y-1] + absparticles[3,xplus1,yplus1]
+                coherencyR1 = absparticles[4,x,y-1] + absparticles[4,x-1,y] + absparticles[4,x,yplus1] + absparticles[4,xplus1,y] \
+                + absparticles[4,x-1,y-1] + absparticles[4,x-1,yplus1] + absparticles[4,xplus1,y-1] + absparticles[4,xplus1,yplus1] \
+                + absparticles[5,x,y-1] + absparticles[5,x-1,y] + absparticles[5,x,yplus1] + absparticles[5,xplus1,y] \
+                + absparticles[5,x-1,y-1] + absparticles[5,x-1,yplus1] + absparticles[5,xplus1,y-1] + absparticles[5,xplus1,yplus1]
                 
-                coherencyN2 = particles [0,x-2,y-2] + particles[0,x-1,y-2] + particles[0,x,y-2] + particles[0,xplus1,y-2] + particles[0,xplus2,y-2] \
-                    + particles[0,x-2,y-1] + particles[0,xplus2,y-1] \
-                    + particles[0,x-2,y] + particles[0,xplus2,y] \
-                    + particles[0,x-2,yplus1] + particles[0,xplus2,yplus1] \
-                    + particles [0,x-2,yplus2] + particles[0,x-1,yplus2] + particles[0,x,yplus2] + particles[0,xplus1,yplus2] + particles[0,xplus2,yplus2]
-                coherencyW2 = particles [1,x-2,y-2] + particles[1,x-1,y-2] + particles[1,x,y-2] + particles[1,xplus1,y-2] + particles[1,xplus2,y-2] \
-                    + particles[1,x-2,y-1] + particles[1,xplus2,y-1] \
-                    + particles[1,x-2,y] + particles[1,xplus2,y] \
-                    + particles[1,x-2,yplus1] + particles[1,xplus2,yplus1] \
-                    + particles [1,x-2,yplus2] + particles[1,x-1,yplus2] + particles[1,x,yplus2] + particles[1,xplus1,yplus2] + particles[1,xplus2,yplus2]
-                coherencyS2 = particles [2,x-2,y-2] + particles[2,x-1,y-2] + particles[2,x,y-2] + particles[2,xplus1,y-2] + particles[2,xplus2,y-2] \
-                    + particles[2,x-2,y-1] + particles[2,xplus2,y-1] \
-                    + particles[2,x-2,y] + particles[2,xplus2,y] \
-                    + particles[2,x-2,yplus1] + particles[2,xplus2,yplus1] \
-                    + particles [2,x-2,yplus2] + particles[2,x-1,yplus2] + particles[2,x,yplus2] + particles[2,xplus1,yplus2] + particles[2,xplus2,yplus2]
-                coherencyE2 = particles [3,x-2,y-2] + particles[3,x-1,y-2] + particles[3,x,y-2] + particles[3,xplus1,y-2] + particles[3,xplus2,y-2] \
-                    + particles[3,x-2,y-1] + particles[3,xplus2,y-1] \
-                    + particles[3,x-2,y] + particles[3,xplus2,y] \
-                    + particles[3,x-2,yplus1] + particles[3,xplus2,yplus1] \
-                    + particles [3,x-2,yplus2] + particles[3,x-1,yplus2] + particles[3,x,yplus2] + particles[3,xplus1,yplus2] + particles[3,xplus2,yplus2]
-                coherencyR2 = particles [4,x-2,y-2] + particles[4,x-1,y-2] + particles[4,x,y-2] + particles[4,xplus1,y-2] + particles[4,xplus2,y-2] \
-                    + particles[4,x-2,y-1] + particles[4,xplus2,y-1] \
-                    + particles[4,x-2,y] + particles[4,xplus2,y] \
-                    + particles[4,x-2,yplus1] + particles[4,xplus2,yplus1] \
-                    + particles [4,x-2,yplus2] + particles[4,x-1,yplus2] + particles[4,x,yplus2] + particles[4,xplus1,yplus2] + particles[4,xplus2,yplus2] \
-                    + particles [5,x-2,y-2] + particles[5,x-1,y-2] + particles[5,x,y-2] + particles[5,xplus1,y-2] + particles[5,xplus2,y-2] \
-                    + particles[5,x-2,y-1] + particles[5,xplus2,y-1] \
-                    + particles[5,x-2,y] + particles[5,xplus2,y] \
-                    + particles[5,x-2,yplus1] + particles[5,xplus2,yplus1] \
-                    + particles [5,x-2,yplus2] + particles[5,x-1,yplus2] + particles[5,x,yplus2] + particles[5,xplus1,yplus2] + particles[5,xplus2,yplus2]
+                coherencyN2 = absparticles [0,x-2,y-2] + absparticles[0,x-1,y-2] + absparticles[0,x,y-2] + absparticles[0,xplus1,y-2] + absparticles[0,xplus2,y-2] \
+                    + absparticles[0,x-2,y-1] + absparticles[0,xplus2,y-1] \
+                    + absparticles[0,x-2,y] + absparticles[0,xplus2,y] \
+                    + absparticles[0,x-2,yplus1] + absparticles[0,xplus2,yplus1] \
+                    + absparticles [0,x-2,yplus2] + absparticles[0,x-1,yplus2] + absparticles[0,x,yplus2] + absparticles[0,xplus1,yplus2] + absparticles[0,xplus2,yplus2]
+                coherencyW2 = absparticles [1,x-2,y-2] + absparticles[1,x-1,y-2] + absparticles[1,x,y-2] + absparticles[1,xplus1,y-2] + absparticles[1,xplus2,y-2] \
+                    + absparticles[1,x-2,y-1] + absparticles[1,xplus2,y-1] \
+                    + absparticles[1,x-2,y] + absparticles[1,xplus2,y] \
+                    + absparticles[1,x-2,yplus1] + absparticles[1,xplus2,yplus1] \
+                    + absparticles [1,x-2,yplus2] + absparticles[1,x-1,yplus2] + absparticles[1,x,yplus2] + absparticles[1,xplus1,yplus2] + absparticles[1,xplus2,yplus2]
+                coherencyS2 = absparticles [2,x-2,y-2] + absparticles[2,x-1,y-2] + absparticles[2,x,y-2] + absparticles[2,xplus1,y-2] + absparticles[2,xplus2,y-2] \
+                    + absparticles[2,x-2,y-1] + absparticles[2,xplus2,y-1] \
+                    + absparticles[2,x-2,y] + absparticles[2,xplus2,y] \
+                    + absparticles[2,x-2,yplus1] + absparticles[2,xplus2,yplus1] \
+                    + absparticles [2,x-2,yplus2] + absparticles[2,x-1,yplus2] + absparticles[2,x,yplus2] + absparticles[2,xplus1,yplus2] + absparticles[2,xplus2,yplus2]
+                coherencyE2 = absparticles [3,x-2,y-2] + absparticles[3,x-1,y-2] + absparticles[3,x,y-2] + absparticles[3,xplus1,y-2] + absparticles[3,xplus2,y-2] \
+                    + absparticles[3,x-2,y-1] + absparticles[3,xplus2,y-1] \
+                    + absparticles[3,x-2,y] + absparticles[3,xplus2,y] \
+                    + absparticles[3,x-2,yplus1] + absparticles[3,xplus2,yplus1] \
+                    + absparticles [3,x-2,yplus2] + absparticles[3,x-1,yplus2] + absparticles[3,x,yplus2] + absparticles[3,xplus1,yplus2] + absparticles[3,xplus2,yplus2]
+                coherencyR2 = absparticles [4,x-2,y-2] + absparticles[4,x-1,y-2] + absparticles[4,x,y-2] + absparticles[4,xplus1,y-2] + absparticles[4,xplus2,y-2] \
+                    + absparticles[4,x-2,y-1] + absparticles[4,xplus2,y-1] \
+                    + absparticles[4,x-2,y] + absparticles[4,xplus2,y] \
+                    + absparticles[4,x-2,yplus1] + absparticles[4,xplus2,yplus1] \
+                    + absparticles [4,x-2,yplus2] + absparticles[4,x-1,yplus2] + absparticles[4,x,yplus2] + absparticles[4,xplus1,yplus2] + absparticles[4,xplus2,yplus2] \
+                    + absparticles [5,x-2,y-2] + absparticles[5,x-1,y-2] + absparticles[5,x,y-2] + absparticles[5,xplus1,y-2] + absparticles[5,xplus2,y-2] \
+                    + absparticles[5,x-2,y-1] + absparticles[5,xplus2,y-1] \
+                    + absparticles[5,x-2,y] + absparticles[5,xplus2,y] \
+                    + absparticles[5,x-2,yplus1] + absparticles[5,xplus2,yplus1] \
+                    + absparticles [5,x-2,yplus2] + absparticles[5,x-1,yplus2] + absparticles[5,x,yplus2] + absparticles[5,xplus1,yplus2] + absparticles[5,xplus2,yplus2]
                     
                 totaly = p1*(coherencyN1 - coherencyS1) + p2*(coherencyN2 - coherencyS2)
                 totalx = p1*(coherencyE1 - coherencyW1) + p2*(coherencyE2 - coherencyW2)
@@ -236,91 +236,99 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 # One particle comes and force two particles to move: 
                 if (partictot_rest[x,y] == 2 and np.random.uniform() < (1-np.abs(totalz/s))**m): 
 
-                    if (particles[0,x,y] == 1 or particles[2,x,y] == 1):
+                    if (absparticles[0,x,y] == 1 or absparticles[2,x,y] == 1):
                         newparticles[4,x,y] = 0
                         newparticles[5,x,y] = 0
-                        newparticles[1,x,y] = 1
-                        newparticles[3,x,y] = 1
+                        if np.random.uniform() <= 0.5:
+                            newparticles[1,x,y] = particles[4,x,y]
+                            newparticles[3,x,y] = particles[5,x,y]
+                        else: 
+                            newparticles[1,x,y] = particles[5,x,y]
+                            newparticles[3,x,y] = particles[4,x,y]
                     else:
                         newparticles[4,x,y] = 0
                         newparticles[5,x,y] = 0
-                        newparticles[0,x,y] = 1
-                        newparticles[2,x,y] = 1
+                        if np.random.uniform() <= 0.5:
+                            newparticles[0,x,y] = particles[4,x,y]
+                            newparticles[2,x,y] = particles[5,x,y]
+                        else:
+                            newparticles[0,x,y] = particles[5,x,y]
+                            newparticles[2,x,y] = particles[4,x,y]
                 # moving in N direction
-                elif (particles[0,x,y] == 1):
-                    S = particles[2,x-1,y-1] + particles[2,x,y-1] + particles[2,xplus1,y-1]
-                    W = particles[1,x-1,y-1] + particles[1,x,y-1] + particles[1,xplus1,y-1]
-                    E = particles[3,x-1,y-1] + particles[3,x,y-1] + particles[3,xplus1,y-1]
+                elif (absparticles[0,x,y] == 1):
+                    S = absparticles[2,x-1,y-1] + absparticles[2,x,y-1] + absparticles[2,xplus1,y-1]
+                    W = absparticles[1,x-1,y-1] + absparticles[1,x,y-1] + absparticles[1,xplus1,y-1]
+                    E = absparticles[3,x-1,y-1] + absparticles[3,x,y-1] + absparticles[3,xplus1,y-1]
                     
                     if (S >= 2 and W < 2 and E < 2):
                         if np.random.uniform() <= p:
                             newparticles[0,x,y] = 0
-                            newparticles[2,x,y] = 1
+                            newparticles[2,x,y] = particles[0,x,y]
                     elif (W >= 2 and S < 2 and E < 2):
                         if np.random.uniform() <= p:
                             newparticles[0,x,y] = 0
-                            newparticles[1,x,y] = 1
+                            newparticles[1,x,y] = particles[0,x,y]
                     elif (E >= 2 and S < 2 and W < 2):
                         if np.random.uniform() <= p:
                             newparticles[0,x,y] = 0
-                            newparticles[3,x,y] = 1
+                            newparticles[3,x,y] = particles[0,x,y]
 
                 #moving in W direction
-                elif (particles[1,x,y] == 1):
-                    E = particles[3,x-1,y-1] + particles[3,x-1,y] + particles[3,x-1,yplus1]
-                    N = particles[0,x-1,y-1] + particles[0,x-1,y] + particles[0,x-1,yplus1]
-                    S = particles[2,x-1,y-1] + particles[2,x-1,y] + particles[2,x-1,yplus1]
+                elif (absparticles[1,x,y] == 1):
+                    E = absparticles[3,x-1,y-1] + absparticles[3,x-1,y] + absparticles[3,x-1,yplus1]
+                    N = absparticles[0,x-1,y-1] + absparticles[0,x-1,y] + absparticles[0,x-1,yplus1]
+                    S = absparticles[2,x-1,y-1] + absparticles[2,x-1,y] + absparticles[2,x-1,yplus1]
 
                     if (E >= 2 and N < 2 and S < 2):
                         if np.random.uniform() <= p:
                             newparticles[1,x,y] = 0
-                            newparticles[3,x,y] = 1
+                            newparticles[3,x,y] = particles[1,x,y]
                     elif (N >= 2 and E < 2 and S < 2):
                         if np.random.uniform() <= p:
                             newparticles[1,x,y] = 0
-                            newparticles[0,x,y] = 1
+                            newparticles[0,x,y] = particles[1,x,y]
                     elif (S >= 2 and E < 2 and N < 2):
                         if np.random.uniform() <= p:
                             newparticles[1,x,y] = 0
-                            newparticles[2,x,y] = 1
+                            newparticles[2,x,y] = particles[1,x,y]
 
                 #moving in S direction
-                elif (particles[2,x,y] == 1):
-                    N = particles[0,x-1,yplus1] + particles[0,x,yplus1] + particles[0,xplus1,yplus1]
-                    W = particles[1,x-1,yplus1] + particles[1,x,yplus1] + particles[1,xplus1,yplus1]
-                    E = particles[3,x-1,yplus1] + particles[3,x,yplus1] + particles[3,xplus1,yplus1]
+                elif (absparticles[2,x,y] == 1):
+                    N = absparticles[0,x-1,yplus1] + absparticles[0,x,yplus1] + absparticles[0,xplus1,yplus1]
+                    W = absparticles[1,x-1,yplus1] + absparticles[1,x,yplus1] + absparticles[1,xplus1,yplus1]
+                    E = absparticles[3,x-1,yplus1] + absparticles[3,x,yplus1] + absparticles[3,xplus1,yplus1]
 
                     if (N >= 2 and W < 2 and E < 2):
                         if np.random.uniform() <= p:
                             newparticles[2,x,y] = 0
-                            newparticles[0,x,y] = 1
+                            newparticles[0,x,y] = particles[2,x,y]
                     elif (W >= 2 and N < 2 and E < 2):
                         if np.random.uniform() <= p:
                             newparticles[2,x,y] = 0
-                            newparticles[1,x,y] = 1
+                            newparticles[1,x,y] = particles[2,x,y]
                     elif (E >= 2 and N < 2 and W < 2):
                         if np.random.uniform() <= p:
                             newparticles[2,x,y] = 0
-                            newparticles[3,x,y] = 1
+                            newparticles[3,x,y] = particles[2,x,y]
 
                 #moving in E direction
-                elif (particles[3,x,y] == 1):
-                    W = particles[1,xplus1,y-1] + particles[1,xplus1,y] + particles[1,xplus1,yplus1]
-                    N = particles[0,xplus1,y-1] + particles[0,xplus1,y] + particles[0,xplus1,yplus1]
-                    S = particles[2,xplus1,y-1] + particles[2,xplus1,y] + particles[2,xplus1,yplus1]
+                elif (absparticles[3,x,y] == 1):
+                    W = absparticles[1,xplus1,y-1] + absparticles[1,xplus1,y] + absparticles[1,xplus1,yplus1]
+                    N = absparticles[0,xplus1,y-1] + absparticles[0,xplus1,y] + absparticles[0,xplus1,yplus1]
+                    S = absparticles[2,xplus1,y-1] + absparticles[2,xplus1,y] + absparticles[2,xplus1,yplus1]
 
                     if (W >= 2 and N < 2 and S < 2):
                         if np.random.uniform() <= p:
                             newparticles[3,x,y] = 0
-                            newparticles[1,x,y] = 1
+                            newparticles[1,x,y] = particles[3,x,y]
                     elif (N >= 2 and W < 2 and S < 2):
                         if np.random.uniform() <= p:
                             newparticles[3,x,y] = 0
-                            newparticles[0,x,y] = 1
+                            newparticles[0,x,y] = particles[3,x,y]
                     elif (S >= 2 and W < 2 and N < 2):
                         if np.random.uniform() <= p:
                             newparticles[3,x,y] = 0
-                            newparticles[2,x,y] = 1
+                            newparticles[2,x,y] = particles[3,x,y]
             
             #two particle interaction
             elif(partictot_moving[x,y] == 2):
@@ -332,49 +340,49 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 yplus2 = (y+2)%h
                 xplus2 = (x+2)%w
                 # R means rest 
-                coherencyN1 = particles[0,x,y-1] + particles[0,x-1,y] + particles[0,x,yplus1] + particles[0,xplus1,y] \
-                + particles[0,x-1,y-1] + particles[0,x-1,yplus1] + particles[0,xplus1,y-1] + particles[0,xplus1,yplus1]
-                coherencyS1 = particles[2,x,y-1] + particles[2,x-1,y] + particles[2,x,yplus1] + particles[2,xplus1,y] \
-                + particles[2,x-1,y-1] + particles[2,x-1,yplus1] + particles[2,xplus1,y-1] + particles[2,xplus1,yplus1]
-                coherencyW1 = particles[1,x,y-1] + particles[1,x-1,y] + particles[1,x,yplus1] + particles[1,xplus1,y] \
-                + particles[1,x-1,y-1] + particles[1,x-1,yplus1] + particles[1,xplus1,y-1] + particles[1,xplus1,yplus1]
-                coherencyE1 = particles[3,x,y-1] + particles[3,x-1,y] + particles[3,x,yplus1] + particles[3,xplus1,y] \
-                + particles[3,x-1,y-1] + particles[3,x-1,yplus1] + particles[3,xplus1,y-1] + particles[3,xplus1,yplus1]
-                coherencyR1 = particles[4,x,y-1] + particles[4,x-1,y] + particles[4,x,yplus1] + particles[4,xplus1,y] \
-                + particles[4,x-1,y-1] + particles[4,x-1,yplus1] + particles[4,xplus1,y-1] + particles[4,xplus1,yplus1] \
-                + particles[5,x,y-1] + particles[5,x-1,y] + particles[5,x,yplus1] + particles[5,xplus1,y] \
-                + particles[5,x-1,y-1] + particles[5,x-1,yplus1] + particles[5,xplus1,y-1] + particles[5,xplus1,yplus1]
+                coherencyN1 = absparticles[0,x,y-1] + absparticles[0,x-1,y] + absparticles[0,x,yplus1] + absparticles[0,xplus1,y] \
+                + absparticles[0,x-1,y-1] + absparticles[0,x-1,yplus1] + absparticles[0,xplus1,y-1] + absparticles[0,xplus1,yplus1]
+                coherencyS1 = absparticles[2,x,y-1] + absparticles[2,x-1,y] + absparticles[2,x,yplus1] + absparticles[2,xplus1,y] \
+                + absparticles[2,x-1,y-1] + absparticles[2,x-1,yplus1] + absparticles[2,xplus1,y-1] + absparticles[2,xplus1,yplus1]
+                coherencyW1 = absparticles[1,x,y-1] + absparticles[1,x-1,y] + absparticles[1,x,yplus1] + absparticles[1,xplus1,y] \
+                + absparticles[1,x-1,y-1] + absparticles[1,x-1,yplus1] + absparticles[1,xplus1,y-1] + absparticles[1,xplus1,yplus1]
+                coherencyE1 = absparticles[3,x,y-1] + absparticles[3,x-1,y] + absparticles[3,x,yplus1] + absparticles[3,xplus1,y] \
+                + absparticles[3,x-1,y-1] + absparticles[3,x-1,yplus1] + absparticles[3,xplus1,y-1] + absparticles[3,xplus1,yplus1]
+                coherencyR1 = absparticles[4,x,y-1] + absparticles[4,x-1,y] + absparticles[4,x,yplus1] + absparticles[4,xplus1,y] \
+                + absparticles[4,x-1,y-1] + absparticles[4,x-1,yplus1] + absparticles[4,xplus1,y-1] + absparticles[4,xplus1,yplus1] \
+                + absparticles[5,x,y-1] + absparticles[5,x-1,y] + absparticles[5,x,yplus1] + absparticles[5,xplus1,y] \
+                + absparticles[5,x-1,y-1] + absparticles[5,x-1,yplus1] + absparticles[5,xplus1,y-1] + absparticles[5,xplus1,yplus1]
                 
-                coherencyN2 = particles [0,x-2,y-2] + particles[0,x-1,y-2] + particles[0,x,y-2] + particles[0,xplus1,y-2] + particles[0,xplus2,y-2] \
-                    + particles[0,x-2,y-1] + particles[0,xplus2,y-1] \
-                    + particles[0,x-2,y] + particles[0,xplus2,y] \
-                    + particles[0,x-2,yplus1] + particles[0,xplus2,yplus1] \
-                    + particles [0,x-2,yplus2] + particles[0,x-1,yplus2] + particles[0,x,yplus2] + particles[0,xplus1,yplus2] + particles[0,xplus2,yplus2]
-                coherencyW2 = particles [1,x-2,y-2] + particles[1,x-1,y-2] + particles[1,x,y-2] + particles[1,xplus1,y-2] + particles[1,xplus2,y-2] \
-                    + particles[1,x-2,y-1] + particles[1,xplus2,y-1] \
-                    + particles[1,x-2,y] + particles[1,xplus2,y] \
-                    + particles[1,x-2,yplus1] + particles[1,xplus2,yplus1] \
-                    + particles [1,x-2,yplus2] + particles[1,x-1,yplus2] + particles[1,x,yplus2] + particles[1,xplus1,yplus2] + particles[1,xplus2,yplus2]
-                coherencyS2 = particles [2,x-2,y-2] + particles[2,x-1,y-2] + particles[2,x,y-2] + particles[2,xplus1,y-2] + particles[2,xplus2,y-2] \
-                    + particles[2,x-2,y-1] + particles[2,xplus2,y-1] \
-                    + particles[2,x-2,y] + particles[2,xplus2,y] \
-                    + particles[2,x-2,yplus1] + particles[2,xplus2,yplus1] \
-                    + particles [2,x-2,yplus2] + particles[2,x-1,yplus2] + particles[2,x,yplus2] + particles[2,xplus1,yplus2] + particles[2,xplus2,yplus2]
-                coherencyE2 = particles [3,x-2,y-2] + particles[3,x-1,y-2] + particles[3,x,y-2] + particles[3,xplus1,y-2] + particles[3,xplus2,y-2] \
-                    + particles[3,x-2,y-1] + particles[3,xplus2,y-1] \
-                    + particles[3,x-2,y] + particles[3,xplus2,y] \
-                    + particles[3,x-2,yplus1] + particles[3,xplus2,yplus1] \
-                    + particles [3,x-2,yplus2] + particles[3,x-1,yplus2] + particles[3,x,yplus2] + particles[3,xplus1,yplus2] + particles[3,xplus2,yplus2]
-                coherencyR2 = particles [4,x-2,y-2] + particles[4,x-1,y-2] + particles[4,x,y-2] + particles[4,xplus1,y-2] + particles[4,xplus2,y-2] \
-                    + particles[4,x-2,y-1] + particles[4,xplus2,y-1] \
-                    + particles[4,x-2,y] + particles[4,xplus2,y] \
-                    + particles[4,x-2,yplus1] + particles[4,xplus2,yplus1] \
-                    + particles [4,x-2,yplus2] + particles[4,x-1,yplus2] + particles[4,x,yplus2] + particles[4,xplus1,yplus2] + particles[4,xplus2,yplus2] \
-                    + particles [5,x-2,y-2] + particles[5,x-1,y-2] + particles[5,x,y-2] + particles[5,xplus1,y-2] + particles[5,xplus2,y-2] \
-                    + particles[5,x-2,y-1] + particles[5,xplus2,y-1] \
-                    + particles[5,x-2,y] + particles[5,xplus2,y] \
-                    + particles[5,x-2,yplus1] + particles[5,xplus2,yplus1] \
-                    + particles [5,x-2,yplus2] + particles[5,x-1,yplus2] + particles[5,x,yplus2] + particles[5,xplus1,yplus2] + particles[5,xplus2,yplus2]
+                coherencyN2 = absparticles [0,x-2,y-2] + absparticles[0,x-1,y-2] + absparticles[0,x,y-2] + absparticles[0,xplus1,y-2] + absparticles[0,xplus2,y-2] \
+                    + absparticles[0,x-2,y-1] + absparticles[0,xplus2,y-1] \
+                    + absparticles[0,x-2,y] + absparticles[0,xplus2,y] \
+                    + absparticles[0,x-2,yplus1] + absparticles[0,xplus2,yplus1] \
+                    + absparticles [0,x-2,yplus2] + absparticles[0,x-1,yplus2] + absparticles[0,x,yplus2] + absparticles[0,xplus1,yplus2] + absparticles[0,xplus2,yplus2]
+                coherencyW2 = absparticles [1,x-2,y-2] + absparticles[1,x-1,y-2] + absparticles[1,x,y-2] + absparticles[1,xplus1,y-2] + absparticles[1,xplus2,y-2] \
+                    + absparticles[1,x-2,y-1] + absparticles[1,xplus2,y-1] \
+                    + absparticles[1,x-2,y] + absparticles[1,xplus2,y] \
+                    + absparticles[1,x-2,yplus1] + absparticles[1,xplus2,yplus1] \
+                    + absparticles [1,x-2,yplus2] + absparticles[1,x-1,yplus2] + absparticles[1,x,yplus2] + absparticles[1,xplus1,yplus2] + absparticles[1,xplus2,yplus2]
+                coherencyS2 = absparticles [2,x-2,y-2] + absparticles[2,x-1,y-2] + absparticles[2,x,y-2] + absparticles[2,xplus1,y-2] + absparticles[2,xplus2,y-2] \
+                    + absparticles[2,x-2,y-1] + absparticles[2,xplus2,y-1] \
+                    + absparticles[2,x-2,y] + absparticles[2,xplus2,y] \
+                    + absparticles[2,x-2,yplus1] + absparticles[2,xplus2,yplus1] \
+                    + absparticles [2,x-2,yplus2] + absparticles[2,x-1,yplus2] + absparticles[2,x,yplus2] + absparticles[2,xplus1,yplus2] + absparticles[2,xplus2,yplus2]
+                coherencyE2 = absparticles [3,x-2,y-2] + absparticles[3,x-1,y-2] + absparticles[3,x,y-2] + absparticles[3,xplus1,y-2] + absparticles[3,xplus2,y-2] \
+                    + absparticles[3,x-2,y-1] + absparticles[3,xplus2,y-1] \
+                    + absparticles[3,x-2,y] + absparticles[3,xplus2,y] \
+                    + absparticles[3,x-2,yplus1] + absparticles[3,xplus2,yplus1] \
+                    + absparticles [3,x-2,yplus2] + absparticles[3,x-1,yplus2] + absparticles[3,x,yplus2] + absparticles[3,xplus1,yplus2] + absparticles[3,xplus2,yplus2]
+                coherencyR2 = absparticles [4,x-2,y-2] + absparticles[4,x-1,y-2] + absparticles[4,x,y-2] + absparticles[4,xplus1,y-2] + absparticles[4,xplus2,y-2] \
+                    + absparticles[4,x-2,y-1] + absparticles[4,xplus2,y-1] \
+                    + absparticles[4,x-2,y] + absparticles[4,xplus2,y] \
+                    + absparticles[4,x-2,yplus1] + absparticles[4,xplus2,yplus1] \
+                    + absparticles [4,x-2,yplus2] + absparticles[4,x-1,yplus2] + absparticles[4,x,yplus2] + absparticles[4,xplus1,yplus2] + absparticles[4,xplus2,yplus2] \
+                    + absparticles [5,x-2,y-2] + absparticles[5,x-1,y-2] + absparticles[5,x,y-2] + absparticles[5,xplus1,y-2] + absparticles[5,xplus2,y-2] \
+                    + absparticles[5,x-2,y-1] + absparticles[5,xplus2,y-1] \
+                    + absparticles[5,x-2,y] + absparticles[5,xplus2,y] \
+                    + absparticles[5,x-2,yplus1] + absparticles[5,xplus2,yplus1] \
+                    + absparticles [5,x-2,yplus2] + absparticles[5,x-1,yplus2] + absparticles[5,x,yplus2] + absparticles[5,xplus1,yplus2] + absparticles[5,xplus2,yplus2]
                     
                 totaly = p1*(coherencyN1 - coherencyS1) + p2*(coherencyN2 - coherencyS2)
                 totalx = p1*(coherencyE1 - coherencyW1) + p2*(coherencyE2 - coherencyW2)
@@ -383,55 +391,108 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
                 #normalized cross section
                 sigma = s/(np.sqrt(4)*(np.abs(p1)*8+np.abs(p2)*16))
                 #two particles with opposite momentums come and rest after the collision: 
-                if ((partictot_rest[x,y] == 0) and ((particles[0,x,y] == 1 and particles[2,x,y] == 1) or (particles[1,x,y] == 1 and particles[3,x,y] == 1)) and
+                if ((partictot_rest[x,y] == 0) and ((absparticles[0,x,y] == 1 and absparticles[2,x,y] == 1) or (absparticles[1,x,y] == 1 and absparticles[3,x,y] == 1)) and
                     (np.random.uniform() < np.abs(totalz/s)**l)):
                         newparticles[0,x,y] = newparticles[1,x,y] = newparticles[2,x,y] = newparticles[3,x,y] = 0
-                        newparticles[4,x,y] = newparticles[5,x,y] = 1
-
-                elif(particles[0,x,y]==1 and particles[2,x,y]==1):
+                        tmp = particles[0,x,y] + particles[1,x,y] + particles[2,x,y] + particles[3,x,y]
+                        if tmp == 2:
+                            newparticles[4,x,y] = newparticles[5,x,y] = 1
+                        elif tmp ==0:
+                            if np.random.uniform() <= 0.5:
+                                newparticles[4,x,y] = 1
+                                newparticles[5,x,y] = -1
+                            else:
+                                newparticles[4,x,y] = -1
+                                newparticles[5,x,y] = 1
+                        elif tmp >= -2:
+                            newparticles[4,x,y] = newparticles[5,x,y] = -1
+                                
+                        
+                #two vertical or horizontal particales come and go horizonetally or vertically with a probability
+                elif(absparticles[0,x,y]==1 and absparticles[2,x,y]==1):
                     if s == 0:
-                        newparticles[1,x,y]=1
-                        newparticles[3,x,y]=1
                         newparticles[0,x,y]=0
                         newparticles[2,x,y]=0
+                        if np.random.uniform() <= 0.5:
+                            newparticles[1,x,y]=particles[0,x,y]
+                            newparticles[3,x,y]=particles[2,x,y]
+                        else:
+                            newparticles[1,x,y]=particles[2,x,y]
+                            newparticles[3,x,y]=particles[0,x,y] 
+                        
                     elif (np.random.uniform() <= (np.abs(totalx/s)**n)*sigma):
-                        newparticles[1,x,y]=1
-                        newparticles[3,x,y]=1
                         newparticles[0,x,y]=0
                         newparticles[2,x,y]=0
-                elif(particles[1,x,y]==1 and particles[3,x,y]==1):
+                        if np.random.uniform() <= 0.5:
+                            newparticles[1,x,y]=particles[0,x,y]
+                            newparticles[3,x,y]=particles[2,x,y]
+                        else:
+                            newparticles[1,x,y]=particles[2,x,y]
+                            newparticles[3,x,y]=particles[0,x,y] 
+                        
+                elif(absparticles[1,x,y]==1 and absparticles[3,x,y]==1):
                     if s == 0:
-                        newparticles[0,x,y]=1
-                        newparticles[2,x,y]=1
                         newparticles[1,x,y]=0
                         newparticles[3,x,y]=0
-                    elif(np.random.uniform() <= (np.abs(totaly/s)**n)*sigma):
-                        newparticles[0,x,y]=1
-                        newparticles[2,x,y]=1
+                        if np.random.uniform() <= 0.5:
+                            newparticles[0,x,y]=particles[1,x,y]
+                            newparticles[2,x,y]=particles[3,x,y]
+                        else:
+                            newparticles[0,x,y]=particles[3,x,y]
+                            newparticles[2,x,y]=particles[1,x,y] 
+                        
+                    elif (np.random.uniform() <= (np.abs(totalx/s)**n)*sigma):
                         newparticles[1,x,y]=0
                         newparticles[3,x,y]=0
-                
+                        if np.random.uniform() <= 0.5:
+                            newparticles[0,x,y]=particles[1,x,y]
+                            newparticles[2,x,y]=particles[3,x,y]
+                        else:
+                            newparticles[0,x,y]=particles[3,x,y]
+                            newparticles[2,x,y]=particles[1,x,y]  
+                    
+                        
                 #sticking to the rest particles
-                elif(particles[0,x,y] == 1 and particles[1,x,y] == 1 and partictot_rest[x,y] == 0):
-                    if ((particles[4,x-1,y] + particles[4,x,y-1] + particles[4,x-1,y-1]) >= 2):
+                elif(absparticles[0,x,y] == 1 and absparticles[1,x,y] == 1 and partictot_rest[x,y] == 0):
+                    if ((absparticles[4,x-1,y] + absparticles[4,x,y-1] + absparticles[4,x-1,y-1] + absparticles[5,x-1,y] + absparticles[5,x,y-1] + absparticles[5,x-1,y-1]) >= 4):
                         if np.random.uniform() <= p:
                             newparticles[0,x,y] = newparticles[1,x,y] = 0
-                            newparticles[4,x,y] = newparticles[5,x,y] = 1
-                elif(particles[1,x,y] == 1 and particles[2,x,y] == 1 and partictot_rest[x,y] == 0):
-                    if ((particles[4,x-1,y] + particles[4,x,y+1] + particles[4,x-1,y+1]) >= 2):
+                            if np.random.uniform() <= 0.5:
+                                newparticles[4,x,y] = particles[0,x,y]
+                                newparticles[5,x,y] = particles[1,x,y]
+                            else:
+                                newparticles[4,x,y] = particles[1,x,y]
+                                newparticles[5,x,y] = particles[0,x,y]
+                elif(absparticles[1,x,y] == 1 and absparticles[2,x,y] == 1 and partictot_rest[x,y] == 0):
+                    if ((absparticles[4,x-1,y] + absparticles[4,x,y+1] + absparticles[4,x-1,y+1] + absparticles[5,x-1,y] + absparticles[5,x,y+1] + absparticles[5,x-1,y+1]) >= 4):
                         if np.random.uniform() <= p:
                             newparticles[1,x,y] = newparticles[2,x,y] = 0
-                            newparticles[4,x,y] = newparticles[5,x,y] = 1
-                elif(particles[2,x,y] == 1 and particles[3,x,y] == 1 and partictot_rest[x,y] == 0):
-                    if ((particles[4,x+1,y] + particles[4,x,y+1] + particles[4,x+1,y+1]) >= 2):
+                            if np.random.uniform() <= 0.5:
+                                newparticles[4,x,y] = particles[1,x,y]
+                                newparticles[5,x,y] = particles[2,x,y]
+                            else:
+                                newparticles[4,x,y] = particles[2,x,y]
+                                newparticles[5,x,y] = particles[1,x,y]
+                elif(absparticles[2,x,y] == 1 and absparticles[3,x,y] == 1 and partictot_rest[x,y] == 0):
+                    if ((absparticles[4,x+1,y] + absparticles[4,x,y+1] + absparticles[4,x+1,y+1] + absparticles[5,x+1,y] + absparticles[5,x,y+1] + absparticles[5,x+1,y+1]) >= 4):
                         if np.random.uniform() <= p:
                             newparticles[2,x,y] = newparticles[3,x,y] = 0
-                            newparticles[4,x,y] = newparticles[5,x,y] = 1
-                elif(particles[3,x,y] == 1 and particles[0,x,y] == 1 and partictot_rest[x,y] == 0):
-                    if ((particles[4,x+1,y] + particles[4,x,y-1] + particles[4,x+1,y-1]) >= 2):
+                            if np.random.uniform() <= 0.5:
+                                newparticles[4,x,y] = particles[2,x,y]
+                                newparticles[5,x,y] = particles[3,x,y]
+                            else:
+                                newparticles[4,x,y] = particles[3,x,y]
+                                newparticles[5,x,y] = particles[2,x,y]
+                elif(absparticles[3,x,y] == 1 and absparticles[0,x,y] == 1 and partictot_rest[x,y] == 0):
+                    if ((absparticles[4,x+1,y] + absparticles[4,x,y-1] + absparticles[4,x+1,y-1] + absparticles[5,x+1,y] + absparticles[5,x,y-1] + absparticles[5,x+1,y-1]) >= 4):
                         if np.random.uniform() <= p:
                             newparticles[3,x,y] = newparticles[0,x,y] = 0
-                            newparticles[4,x,y] = newparticles[5,x,y] = 1           
+                            if np.random.uniform() <= 0.5:
+                                newparticles[4,x,y] = particles[3,x,y]
+                                newparticles[5,x,y] = particles[0,x,y]
+                            else:
+                                newparticles[4,x,y] = particles[0,x,y]
+                                newparticles[5,x,y] = particles[3,x,y]          
                             
                                         
     return newparticles
