@@ -17,11 +17,14 @@ camera = Camera(W,H)
 world_state = np.random.randint(0,255,(W,H,3),dtype=np.uint8)
 
 # Initialize the automaton
-
-auto = SMCA((W,H), False) # If you want not to monitor the statistics of the evolution set the second argument False.
 updating = True
 recording = False
 launch_video = False
+# * If you want to store the statistics of clumps, set Statistics = True.
+Statistics = True
+
+auto = SMCA((W,H), Statistics) # If you want not to monitor the statistics of the evolution set the second argument False.
+
 
 while running:
     # poll for events

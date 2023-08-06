@@ -115,8 +115,9 @@ class SMCA(Automaton):
         """
             Gives you the statistics of the lattice state including a file for the average size clumps and a file for the histogram of clumps size
         """
+        absparticles = np.abs(self.particles)
         with concurrent.futures.ThreadPoolExecutor(6) as executor:
-            out = list(executor.map(count_clupms_aux, np.abs(self.particles[[0,1,2,3,4,5],:,:])))
+            out = list(executor.map(count_clupms_aux, absparticles[[0,1,2,3,4,5],:,:]))
         avg_lump_sizes = [tpl[0] for tpl in out]
         bins = [tpl[1] for tpl in out]
         hist = [tpl[2] for tpl in out]
@@ -166,7 +167,7 @@ def collision_cpu(particles :np.ndarray,w,h,dirdico):
     #probability of sticking
     p = 1
     # As m becomes bigger, rest particles become more stable. 
-    m = 2
+    m = 1.7
     # l should be [0,+infinite): As l becomes smaller, The probability of getting rest for two particles coming from opposite direction increases
     l = 0.1
     # Particle collision
