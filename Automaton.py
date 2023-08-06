@@ -57,13 +57,14 @@ class SMCA(Automaton):
         self.particles = np.random.randn(5,self.w,self.h) 
         copy_rest_particles = self.particles[4:5,:,:]
         self.particles = np.append(self.particles, copy_rest_particles, axis = 0) # (6,w,h) in which the last two components are for the rest paticles
-        threshhold = 2.5
+        threshhold = 2
         tmp1 = self.particles <= threshhold
         tmp2 = self.particles >= -threshhold
         tmp3 = tmp1 * tmp2
-        self.particles = np.where(tmp3,0,self.particles).astype(np.int16)
-        self.particles = np.where(self.particles > threshhold,1,self.particles).astype(np.int16)
-        self.particles = np.where(self.particles < -threshhold,-1,self.particles).astype(np.int16)
+        self.particles = np.where(tmp3,0,self.particles)
+        self.particles = np.where(self.particles > threshhold,1,self.particles)
+        self.particles = np.where(self.particles < -threshhold,-1,self.particles)
+        self.particles = self.particles.astype(np.int16)
         
         self.dir = np.array([[0,-1],[-1,0],[0,1],[1,0]])  # Contains arrays of the direction North,West,South,East
         # This part creates two csv files one for average size of the clumps and the other for the histogram:
@@ -89,8 +90,8 @@ class SMCA(Automaton):
         self._worldmap = np.zeros_like(self._worldmap) #(W,H,3)
         self.neutron = np.where(self.particles == 1, 1, 0)
         self.proton = np.where(self.particles == -1, 1, 0)
-        self._worldmap[:,:,2]=(self.neutron.sum(axis = 0))[:,:]
-        self._worldmap[:,:,0]=(self.proton.sum(axis = 0))[:,:]
+        self._worldmap[:,:,2]=(self.neutron.sum(axis = 0)/2.)[:,:]
+        self._worldmap[:,:,0]=(self.proton.sum(axis = 0)/2.)[:,:]
         if (self.is_countingclumps and self.steps_cnt % self.nsteps == 0):
             self.count_clupms()
         self.steps_cnt += 1
