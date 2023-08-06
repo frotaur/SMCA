@@ -57,7 +57,7 @@ class SMCA(Automaton):
         self.particles = np.random.randn(5,self.w,self.h) 
         copy_rest_particles = self.particles[4:5,:,:]
         self.particles = np.append(self.particles, copy_rest_particles, axis = 0) # (6,w,h) in which the last two components are for the rest paticles
-        threshhold = 1.7
+        threshhold = 2.5
         tmp1 = self.particles <= threshhold
         tmp2 = self.particles >= -threshhold
         tmp3 = tmp1 * tmp2
@@ -85,12 +85,12 @@ class SMCA(Automaton):
             Steps the automaton state by one iteration.
         """
         self.propagation_step()
-        self.collision_step()
+        # self.collision_step()
         self._worldmap = np.zeros_like(self._worldmap) #(W,H,3)
-        self.neutron = np.where((self.particles.sum(axis=0)/6) == 1,1,0)
-        self.proton = np.where((self.particles.sum(axis=0)/6) == 2,1,0)
-        self._worldmap[:,:,2]=(self.neutron)[:,:]
-        self._worldmap[:,:,0]=(self.proton)[:,:]
+        self.neutron = np.where(self.particles == 1, 1, 0)
+        self.proton = np.where(self.particles == -1, 1, 0)
+        self._worldmap[:,:,2]=(self.neutron.sum(axis = 0))[:,:]
+        self._worldmap[:,:,0]=(self.proton.sum(axis = 0))[:,:]
         if (self.is_countingclumps and self.steps_cnt % self.nsteps == 0):
             self.count_clupms()
         self.steps_cnt += 1
