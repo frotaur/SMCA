@@ -1,9 +1,9 @@
-# Byte-compiled
-__pycache__/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-.vscode
-
+venv_SMCA
+__pycache__
 .DS_Store
+Videos
+CSV
+Reading Materials
+testing.py
+squared lattice automaton.py
+test.py

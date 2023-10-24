@@ -1,0 +1,10 @@
+llvmlite==0.40.1
+numba==0.57.1
+numpy==1.24.4
+opencv-python==4.8.0.74
+pbr==5.11.1
+prettytable==3.8.0
+pygame==2.5.0
+wcwidth==0.2.6
+pandas==2.1.1
+matplotlib==3.8.0
