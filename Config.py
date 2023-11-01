@@ -1,29 +1,32 @@
 import numpy as np
 
 # * If you want any of interactions create photon, set their boolean True
-Collision_photon = True
+Sticking_photon = False
 Protonaction_photon = True
 Neutronaction_photon = True
 
 #This dictionary is created to map photon creation booleans order to their name
 photon_creation_map = {
-    'Collision_photon': 0,
+    'Sticking_photon': 0,
     'Protonaction_photon': 1,
     'Neutronaction_photon': 2,
     #! The order of booleans related to functions has to be in correspondence with above numbers
-    'config_list' : [Collision_photon,Protonaction_photon,Neutronaction_photon]
+    'config_list' : [Sticking_photon,Protonaction_photon,Neutronaction_photon]
 }
 
-# Specify the order in which functions should be executed. If you do not want a function to operate, you should not put its name in this list
+# Specify the order in which functions should be executed. If you do not want a function to operate, you should not put its name in this list.
+#! It is sensitive to capital or small letter
 execution_order = [
     'count_particles',
-    'propagation_step',
-    'count_particles',
-    'collision_step',
-    'count_particles',
-    'protonaction_step',
-    'neutronaction_step',
-    'count_particles',
+    'propagation_prot_neut_step',
+    'propagation_photon_step',
+    #'count_particles',
+    'sticking_step',
+    #'scattering_step',
+    #'count_particles',
+    #'protonaction_step',
+    #'neutronaction_step',
+    #'count_particles',
     'absorption_step'
 ]
 
@@ -48,11 +51,21 @@ constants_dict = {
     "Sticking_high_threshold": 4,
     "Sticking_low_threshold": 4,
 
+    #weight1 and weight2 are the weight of first and second neighbours respectively in scattering
+    "Scattering_weight1": 1,
+    "Scattering_weight2": 1,
+    # The probability when there is no neighbor moving in the same direction of the scattered particle
+    "Probability of scattering": 0.5,
+    # The threshold after which the probability of scattering decreases
+    "Scattering_threshold_one": 3,
+    # The threshold after which the probability of scattering is zero
+    "Scattering_threshold_two": 7,
+
     #weight1 and weight2 are the weight of first and second proton/neurton neighbours respectively
     "Prot_Neut_weight1": 1,
     "Prot_Neut_weight2": 0.5,
 
-    #threshold after which there is a probability that proton/neutron suddenly changes its direction
+    #Threshold after which there is a probability that proton/neutron suddenly changes its direction
     "Prot_Neut_threshold": 6,
     #slope of the line of the linear increase of probability after threshold
     "Prot_Neut_slope": 0.3,

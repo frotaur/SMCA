@@ -88,6 +88,7 @@ class SMCA_Triangular(Automaton):
             The order of execution of functions is defined in self.execution_order
         """
 
+        #TODO produce an error if function name is not defined in the class 
         for function_name in self.execution_order:
             function = getattr(self, function_name)
             if function_name == 'count_particles' and self.steps_cnt % self.particle_counting_nsteps == 0:
@@ -109,20 +110,35 @@ class SMCA_Triangular(Automaton):
         
         
         
-    def propagation_step(self):
+    def propagation_prot_neut_step(self):
         """
-            Does the propagation step of the automaton
+            Does the propagation step of the protons and neutrons in the automaton
         """
-        (self.particles,self.photons) = propagation_cpu(self.particles,self.photons,self.w,self.h,self.dir)
+        self.particles = propagation_prot_neut_cpu(self.particles,self.w,self.h,self.dir)
 
-    def collision_step(self):
+
+    def propagation_photon_step(self):
         """
-        Does the collision step of the automaton
+            Does the propagation step of the photons in the automaton
         """
-        #creating a numpy array for constants to give them to collision_cpu that is using Numba
-        collision_constants = np.array([self.constants["Probability_of_sticking"] , self.constants["Sticking_w1_input"] , self.constants["Sticking_w2_input"] , self.constants["Sticking_w3_input"] , self.constants["Sticking_w4_input"], self.constants["Sticking_high_threshold"], self.constants["Sticking_low_threshold"] ])
-        (self.particles,self.photons) = collision_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_config[self.photon_creation_map.get('Collision_photon')],collision_constants)
+        self.photons = propagation_photon_cpu(self.photons,self.w,self.h,self.dir)
+
+    def sticking_step(self):
+        """
+        Does the sticking step of the automaton
+        """
+        #creating a numpy array for constants to give them to sticking_cpu that is using Numba
+        sticking_constants = np.array([self.constants["Probability_of_sticking"] , self.constants["Sticking_w1_input"] , self.constants["Sticking_w2_input"] , self.constants["Sticking_w3_input"] , self.constants["Sticking_w4_input"], self.constants["Sticking_high_threshold"], self.constants["Sticking_low_threshold"] ])
+        (self.particles,self.photons) = sticking_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_config[self.photon_creation_map.get('Sticking_photon')],sticking_constants)
     
+    def scattering_step(self):
+        """
+        Does the scattering step of the automaton
+        """
+        #creating a numpy array for constants to give them to sticking_cpu that is using Numba
+        scattering_constants = np.array([self.constants["Scattering_weight1"], self.constants["Scattering_weight2"], self.constants["Probability of scattering"], self.constants["Scattering_threshold_one"], self.constants["Scattering_threshold_two"]])
+        self.particles = scattering_cpu(self.particles,self.w,self.h,scattering_constants)
+
     def protonaction_step(self):
         """
         Does the proton excusive attribute 
@@ -172,20 +188,19 @@ class SMCA_Triangular(Automaton):
             csv.writer(f).writerow(data)
 
 @njit(parallel=True)
-def collision_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon, constants):
+def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon, constants):
 
     absparticles = np.abs(particles)
     newparticles = np.copy(particles)
-    partictot_moving = absparticles[0:6,:,:].sum(axis=0) #(W,H)
-    #partictot_rest = absparticles[6,:,:].sum(axis=0)  #(W,H)
+    total_particles = absparticles.sum(axis=0) #(W,H)
 
-    # Particle collision
+    # Particle sticking
 
     
     for x in prange(w):
         for y in prange(h):
-            #one-particle interaction (sticking)
-            if (partictot_moving[x,y] == 1):
+            
+            if (total_particles[x,y] == 1):
                 
                 yplus1 = (y+1)%h
                 xplus1 = (x+1)%w
@@ -254,11 +269,8 @@ def collision_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon
                                     photons[(1 + previousdir) % 6 ,x,y] += 1
 
 
-
-
-
                 #moving in SE direction   
-                if (absparticles[1,x,y] == 1):
+                elif (absparticles[1,x,y] == 1):
                     E = w1 * (absparticles[0,xplus1,yplus1]) + w2 * (absparticles[0,x-1,yplus1] + absparticles[0,xplus2,y]) + w3 * (absparticles[0,x-2,y] +  absparticles[0,xplus1,y-1]) + w4 * (absparticles[0,x-1,y-1])
                     SW = w1 * (absparticles[2,xplus1,yplus1]) + w2 * (absparticles[2,x-1,yplus1] + absparticles[2,xplus2,y]) + w3 * (absparticles[2,x-2,y] +  absparticles[2,xplus1,y-1]) + w4 * (absparticles[2,x-1,y-1])
                     W = w1 * (absparticles[3,xplus1,yplus1]) + w2 * (absparticles[3,x-1,yplus1] + absparticles[3,xplus2,y]) + w3 * (absparticles[3,x-2,y] +  absparticles[3,xplus1,y-1]) + w4 * (absparticles[3,x-1,y-1])
@@ -312,7 +324,7 @@ def collision_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon
 
                 
                 # moving in SW direction   
-                if (absparticles[2,x,y] == 1):
+                elif (absparticles[2,x,y] == 1):
                     E = w1 * (absparticles[0,x-1,yplus1]) + w2 * (absparticles[0,xplus1,yplus1] + absparticles[0,x-2,y]) + w3 * (absparticles[0,xplus2,y] + absparticles[0,x-1,y-1]) + w4 * (absparticles[0,xplus1,y-1])
                     SE = w1 * (absparticles[1,x-1,yplus1]) + w2 * (absparticles[1,xplus1,yplus1] + absparticles[1,x-2,y]) + w3 * (absparticles[1,xplus2,y] + absparticles[1,x-1,y-1]) + w4 * (absparticles[1,xplus1,y-1])
                     W = w1 * (absparticles[3,x-1,yplus1]) + w2 * (absparticles[3,xplus1,yplus1] + absparticles[3,x-2,y]) + w3 * (absparticles[3,xplus2,y] + absparticles[3,x-1,y-1]) + w4 * (absparticles[3,xplus1,y-1])
@@ -367,7 +379,7 @@ def collision_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon
 
 
                 #moving in W direction   
-                if (absparticles[3,x,y] == 1):
+                elif (absparticles[3,x,y] == 1):
                     E = w1 * (absparticles[0,x-2,y]) + w2 * (absparticles[0,x-1,yplus1] + absparticles[0,x-1,y-1]) + w3 * (absparticles[0,xplus1,y-1] + absparticles[0,xplus1,yplus1]) + w4 * (absparticles[0,xplus2,y])
                     SE = w1 * (absparticles[1,x-2,y]) + w2 * (absparticles[1,x-1,yplus1] + absparticles[1,x-1,y-1]) + w3 * (absparticles[1,xplus1,y-1] + absparticles[1,xplus1,yplus1]) + w4 * (absparticles[1,xplus2,y])
                     SW = w1 * (absparticles[2,x-2,y]) + w2 * (absparticles[2,x-1,yplus1] + absparticles[2,x-1,y-1]) + w3 * (absparticles[2,xplus1,y-1] + absparticles[2,xplus1,yplus1]) + w4 * (absparticles[2,xplus2,y])
@@ -422,7 +434,7 @@ def collision_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon
 
 
                 #moving in NW direction   
-                if (absparticles[4,x,y] == 1):
+                elif (absparticles[4,x,y] == 1):
                     E = w1 * (absparticles[0,x-1,y-1]) + w2 * (absparticles[0,xplus1,y-1] + absparticles[0,x-2,y]) + w3 * (absparticles[0,x-1,yplus1] + absparticles[0,xplus2,y]) + w4 * (absparticles[0,xplus1,yplus1])
                     SE = w1 * (absparticles[1,x-1,y-1]) + w2 * (absparticles[1,xplus1,y-1] + absparticles[1,x-2,y]) + w3 * (absparticles[1,x-1,yplus1] + absparticles[1,xplus2,y]) + w4 * (absparticles[1,xplus1,yplus1])
                     SW = w1 * (absparticles[2,x-1,y-1]) + w2 * (absparticles[2,xplus1,y-1] + absparticles[2,x-2,y]) + w3 * (absparticles[2,x-1,yplus1] + absparticles[2,xplus2,y]) + w4 * (absparticles[2,xplus1,yplus1])
@@ -477,7 +489,7 @@ def collision_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon
 
 
                 #moving in NE direction   
-                if (absparticles[5,x,y] == 1):
+                elif (absparticles[5,x,y] == 1):
                     E = w1 * (absparticles[0,xplus1,y-1]) + w2 * (absparticles[0,x-1,y-1] + absparticles[0,xplus2,y]) + w3 * (absparticles[0,xplus1,yplus1] + absparticles[0,x-2,y]) + w4 * (absparticles[0,x-1,yplus1])
                     SE = w1 * (absparticles[1,xplus1,y-1]) + w2 * (absparticles[1,x-1,y-1] + absparticles[1,xplus2,y]) + w3 * (absparticles[1,xplus1,yplus1] + absparticles[1,x-2,y]) + w4 * (absparticles[1,x-1,yplus1])
                     SW = w1 * (absparticles[2,xplus1,y-1]) + w2 * (absparticles[2,x-1,y-1] + absparticles[2,xplus2,y]) + w3 * (absparticles[2,xplus1,yplus1] + absparticles[2,x-2,y]) + w4 * (absparticles[2,x-1,yplus1])
@@ -530,6 +542,43 @@ def collision_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon
     
     
     return (newparticles,photons)
+
+@njit(parallel = True)
+def scattering_cpu(particles: np.ndarray, w,h, constants):
+
+    absparticles = np.abs(particles)
+    newparticles = np.copy(particles)
+    total_particles = absparticles.sum(axis=0) #(W,H)
+
+    for x in prange(w):
+        for y in prange(h):
+
+            if (total_particles[x,y] == 2):
+                
+                nonzero_indices = np.nonzero(particles[:,x,y])[0]
+
+                probability = scattering_probability(particles, w,h, x,y, nonzero_indices[0] ,constants) * \
+                    scattering_probability(particles, w,h, x,y, nonzero_indices[1], constants)
+
+                if(np.random.random() < probability):
+                    newparticles[:,x,y] = scattering_dynamics_2_particle(particles[:,x,y], nonzero_indices)
+
+            
+            elif (total_particles[x,y] == 3):
+
+                nonzero_indices = np.nonzero(particles[:,x,y])[0]
+
+                probability = scattering_probability(particles, w,h, x,y, nonzero_indices[0] ,constants) * \
+                    scattering_probability(particles, w,h, x,y, nonzero_indices[1], constants) * \
+                    scattering_probability(particles, w,h, x,y, nonzero_indices[2], constants)
+                
+                if(np.random.random() < probability):
+                    newparticles[:,x,y] = scattering_dynamics_3_particle(particles[:,x,y], nonzero_indices)
+                
+
+
+            
+    return newparticles
 
 @njit(parallel = True)
 def protonaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon, constants):
@@ -654,17 +703,26 @@ def neutronaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_ph
     return (newparticles,photons)
 
 @njit(parallel=True)
-def propagation_cpu(particles, photons, w,h,dirdico):
+def propagation_prot_neut_cpu(particles, w,h,dirdico):
     newparticles=np.copy(particles)
-    newphotons = np.copy(photons)
     for x in prange(w):
         for y in prange(h):
             loc = np.array([x,y])
             for dir in range(6):
                 new_position = (loc+dirdico[dir])%np.array([w,h])
                 newparticles[dir,new_position[0],new_position[1]] = particles[dir,x,y]
+    return newparticles
+
+@njit(parallel=True)
+def propagation_photon_cpu(photons, w,h,dirdico):
+    newphotons = np.copy(photons)
+    for x in prange(w):
+        for y in prange(h):
+            loc = np.array([x,y])
+            for dir in range(6):
+                new_position = (loc+dirdico[dir])%np.array([w,h])
                 newphotons[dir,new_position[0],new_position[1]] = photons[dir,x,y]
-    return (newparticles,newphotons)
+    return newphotons
 
 @njit(parallel=True)
 def absorption_cpu(particles: np.ndarray, photons: np.ndarray, w,h, constants):
@@ -731,3 +789,971 @@ def absorption_cpu(particles: np.ndarray, photons: np.ndarray, w,h, constants):
                                         break
     
     return (newparticles,photons)
+
+@njit
+def scattering_dynamics_2_particle(particles, nonzero_indices):
+    newparticles = np.copy(particles)
+
+    smaller_index = nonzero_indices[0]
+    bigger_index = nonzero_indices[1]
+    momentum_difference = bigger_index - smaller_index
+
+    if (bigger_index == 6):
+        if (np.random.uniform() < 0.5):
+            newparticles[bigger_index] = particles[smaller_index]
+            newparticles[smaller_index] = particles[bigger_index]
+        else:
+            newparticles[smaller_index] = 0
+            newparticles[bigger_index] = 0
+
+            if (np.random.uniform() < 0.5):
+                newparticles[(1 + smaller_index) % 6] = particles[smaller_index]
+                newparticles[(5 + smaller_index) % 6] = particles[bigger_index]
+            else:
+                newparticles[(1 + smaller_index) % 6] = particles[bigger_index]
+                newparticles[(5 + smaller_index) % 6] = particles[smaller_index]
+    
+    else:
+        if (momentum_difference == 1):
+            newparticles[bigger_index] = particles[smaller_index]
+            newparticles[smaller_index] = particles[bigger_index]
+            
+        elif (momentum_difference == 2):
+            if (np.random.uniform() < 0.5):
+                newparticles[bigger_index] = particles[smaller_index]
+                newparticles[smaller_index] = particles[bigger_index]
+            else:
+                newparticles[smaller_index] = 0
+                newparticles[bigger_index] = 0
+
+                if(np.random.uniform() < 0.5):
+                    newparticles[(2 + smaller_index) % 6] = particles[smaller_index]
+                    newparticles[6] = particles[bigger_index]
+                else:
+                    newparticles[(2 + smaller_index) % 6] = particles[bigger_index]
+                    newparticles[6] = particles[smaller_index]
+        
+        elif (momentum_difference == 3):
+            rand = np.random.uniform()
+            if (rand < 1/3):
+                newparticles[bigger_index] = particles[smaller_index]
+                newparticles[smaller_index] = particles[bigger_index]
+
+            elif (rand>1/3 and rand<2/3):
+                newparticles[smaller_index] = 0
+                newparticles[bigger_index] = 0
+
+                if(np.random.uniform() < 0.5):
+                    newparticles[(1 + smaller_index) % 6] = particles[smaller_index]
+                    newparticles[(4 + smaller_index) % 6] = particles[bigger_index]
+                else:
+                    newparticles[(1 + smaller_index) % 6] = particles[bigger_index]
+                    newparticles[(4 + smaller_index) % 6] = particles[smaller_index]
+            
+            else:
+                newparticles[smaller_index] = 0
+                newparticles[bigger_index] = 0
+
+                if(np.random.uniform() < 0.5):
+                    newparticles[(2 + smaller_index) % 6] = particles[smaller_index]
+                    newparticles[(5 + smaller_index) % 6] = particles[bigger_index]
+                else:
+                    newparticles[(2 + smaller_index) % 6] = particles[bigger_index]
+                    newparticles[(5 + smaller_index) % 6] = particles[smaller_index]
+
+        elif (momentum_difference == 4):
+            if (np.random.uniform() < 0.5):
+                newparticles[bigger_index] = particles[smaller_index]
+                newparticles[smaller_index] = particles[bigger_index]
+            else:
+                newparticles[smaller_index] = 0
+                newparticles[bigger_index] = 0
+
+                if(np.random.uniform() < 0.5):
+                    newparticles[(5 + smaller_index) % 6] = particles[smaller_index]
+                    newparticles[6] = particles[bigger_index]
+                else:
+                    newparticles[(5 + smaller_index) % 6] = particles[bigger_index]
+                    newparticles[6] = particles[smaller_index]
+
+        elif (momentum_difference == 5):
+            newparticles[bigger_index] = particles[smaller_index]
+            newparticles[smaller_index] = particles[bigger_index]
+    
+    return newparticles
+
+@njit
+def scattering_dynamics_3_particle(particles, nonzero_indices):
+    newparticles = np.copy(particles)
+
+    index_1 = nonzero_indices[0]
+    index_2 = nonzero_indices[1]
+    index_3 = nonzero_indices[2]
+
+    momentum_diff_12 = index_2 - index_1
+    momentum_diff_23 = index_3 - index_2
+
+    nonzero_values = particles[nonzero_indices]
+    count_protons = np.count_nonzero(nonzero_values == -1)
+    count_neutrons = np.count_nonzero(nonzero_values == 1)
+    if (count_protons == 1):
+        single_particle = -1
+    elif (count_neutrons == 1):
+        single_particle = 1
+    else:
+        single_particle = None
+
+    if (index_3 == 6):
+        new_index_1 = 0
+        new_index_2 = momentum_diff_12
+        new_momentum_diff_12 = new_index_2 - new_index_1
+
+        if (new_momentum_diff_12 == 1):
+            #TODO exclude the non-scattered permutation
+            if (single_particle is not None):
+                #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                newparticles[nonzero_indices] = 0
+                rand = np.random.uniform()
+                if (rand < 1/3):
+                    newparticles[(new_index_1 + index_1) % 6] = single_particle
+                    newparticles[(new_index_2 + index_1) % 6] = -single_particle
+                    newparticles[6] = -single_particle
+                elif (rand > 1/3 and rand < 2/3):
+                    newparticles[(new_index_1 + index_1) % 6] = -single_particle
+                    newparticles[(new_index_2 + index_1) % 6] = single_particle
+                    newparticles[6] = -single_particle
+                else:
+                    newparticles[(new_index_1 + index_1) % 6] = -single_particle
+                    newparticles[(new_index_2 + index_1) % 6] = -single_particle
+                    newparticles[6] = single_particle
+                 
+        elif (new_momentum_diff_12 == 2):
+            
+            rand1 = np.random.uniform()
+            if (rand1 < 1/3):
+                if (single_particle is not None):
+                    newparticles[nonzero_indices] = 0
+                    rand2 = np.random.uniform()
+                    if (rand2 < 1/3):
+                        newparticles[(new_index_1 + index_1) % 6] = single_particle
+                        newparticles[(new_index_2 + index_1) % 6] = -single_particle
+                        newparticles[6] = -single_particle
+                    elif (rand2 > 1/3 and rand2 < 2/3):
+                        newparticles[(new_index_1 + index_1) % 6] = -single_particle
+                        newparticles[(new_index_2 + index_1) % 6] = single_particle
+                        newparticles[6] = -single_particle
+                    else:
+                        newparticles[(new_index_1 + index_1) % 6] = -single_particle
+                        newparticles[(new_index_2 + index_1) % 6] = -single_particle
+                        newparticles[6] = single_particle
+                    
+            elif (rand1 > 1/3 and rand1 < 2/3):
+                newparticles[nonzero_indices] = 0
+                if (single_particle is None):
+                    newparticles[(0 + index_1) % 6] = particles[index_1]
+                    newparticles[(1 + index_1) % 6] = particles[index_1]
+                    newparticles[(3 + index_1) % 6] = particles[index_1]
+                else:
+                    rand2 = np.random.uniform()
+                    if (rand2 < 1/3):
+                        newparticles[(0 + index_1) % 6] = single_particle
+                        newparticles[(1 + index_1) % 6] = -single_particle
+                        newparticles[(3 + index_1) % 6] = -single_particle
+                    elif (rand2 > 1/3 and rand2 < 2/3):
+                        newparticles[(0 + index_1) % 6] = -single_particle
+                        newparticles[(1 + index_1) % 6] = single_particle
+                        newparticles[(3 + index_1) % 6] = -single_particle
+                    else:
+                        newparticles[(0 + index_1) % 6] = -single_particle
+                        newparticles[(1 + index_1) % 6] = -single_particle
+                        newparticles[(3 + index_1) % 6] = single_particle
+
+            else:
+                newparticles[nonzero_indices] = 0
+                if (single_particle is None):
+                    newparticles[(1 + index_1) % 6] = particles[index_1]
+                    newparticles[(2 + index_1) % 6] = particles[index_1]
+                    newparticles[(5 + index_1) % 6] = particles[index_1]
+                else:
+                    rand2 = np.random.uniform()
+                    if (rand2 < 1/3):
+                        newparticles[(1 + index_1) % 6] = single_particle
+                        newparticles[(2 + index_1) % 6] = -single_particle
+                        newparticles[(5 + index_1) % 6] = -single_particle
+                    elif (rand2 > 1/3 and rand2 < 2/3):
+                        newparticles[(1 + index_1) % 6] = -single_particle
+                        newparticles[(2 + index_1) % 6] = single_particle
+                        newparticles[(5 + index_1) % 6] = -single_particle
+                    else:
+                        newparticles[(1 + index_1) % 6] = -single_particle
+                        newparticles[(2 + index_1) % 6] = -single_particle
+                        newparticles[(5 + index_1) % 6] = single_particle
+        
+        elif (new_momentum_diff_12 == 3):
+            rand1 = np.random.uniform()
+            if (rand1 < 0.2):
+                if (single_particle is not None):
+                    #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                    newparticles[nonzero_indices] = 0
+                    rand2 = np.random.uniform()
+                    if (rand2 < 1/3):
+                        newparticles[(new_index_1 + index_1) % 6] = single_particle
+                        newparticles[(new_index_2 + index_1) % 6] = -single_particle
+                        newparticles[6] = -single_particle
+                    elif (rand2 > 1/3 and rand2 < 2/3):
+                        newparticles[(new_index_1 + index_1) % 6] = -single_particle
+                        newparticles[(new_index_2 + index_1) % 6] = single_particle
+                        newparticles[6] = -single_particle
+                    else:
+                        newparticles[(new_index_1 + index_1) % 6] = -single_particle
+                        newparticles[(new_index_2 + index_1) % 6] = -single_particle
+                        newparticles[6] = single_particle
+
+            elif (rand1 > 0.2 and rand1 < 0.4):
+                newparticles[nonzero_indices] = 0
+                if (single_particle is None):
+                    newparticles[(1 + index_1) % 6] = particles[index_1]
+                    newparticles[(4 + index_1) % 6] = particles[index_1]
+                    newparticles[6] = particles[index_1]
+                else:
+                    rand2 = np.random.uniform()
+                    if (rand2 < 1/3):
+                        newparticles[(1 + index_1) % 6] = single_particle
+                        newparticles[(4 + index_1) % 6] = -single_particle
+                        newparticles[6] = -single_particle
+                    elif (rand2 > 1/3 and rand2 < 2/3):
+                        newparticles[(1 + index_1) % 6] = -single_particle
+                        newparticles[(4 + index_1) % 6] = single_particle
+                        newparticles[6] = -single_particle
+                    else:
+                        newparticles[(1 + index_1) % 6] = -single_particle
+                        newparticles[(4 + index_1) % 6] = -single_particle
+                        newparticles[6] = single_particle
+                
+            elif (rand1 > 0.4 and rand1 < 0.6):
+                newparticles[nonzero_indices] = 0
+                if (single_particle is None):
+                    newparticles[(2 + index_1) % 6] = particles[index_1]
+                    newparticles[(5 + index_1) % 6] = particles[index_1]
+                    newparticles[6] = particles[index_1]
+                else:
+                    rand2 = np.random.uniform()
+                    if (rand2 < 1/3):
+                        newparticles[(2 + index_1) % 6] = single_particle
+                        newparticles[(5 + index_1) % 6] = -single_particle
+                        newparticles[6] = -single_particle
+                    elif (rand2 > 1/3 and rand2 < 2/3):
+                        newparticles[(2 + index_1) % 6] = -single_particle
+                        newparticles[(5 + index_1) % 6] = single_particle
+                        newparticles[6] = -single_particle
+                    else:
+                        newparticles[(2 + index_1) % 6] = -single_particle
+                        newparticles[(5 + index_1) % 6] = -single_particle
+                        newparticles[6] = single_particle
+
+            elif (rand1 > 0.6 and rand1 < 0.8):
+                newparticles[nonzero_indices] = 0
+                if (single_particle is None):
+                    newparticles[(0 + index_1) % 6] = particles[index_1]
+                    newparticles[(2 + index_1) % 6] = particles[index_1]
+                    newparticles[(4 + index_1) % 6] = particles[index_1]
+                else:
+                    rand2 = np.random.uniform()
+                    if (rand2 < 1/3):
+                        newparticles[(0 + index_1) % 6] = single_particle
+                        newparticles[(2 + index_1) % 6] = -single_particle
+                        newparticles[(4 + index_1) % 6] = -single_particle
+                    elif (rand2 > 1/3 and rand2 < 2/3):
+                        newparticles[(0 + index_1) % 6] = -single_particle
+                        newparticles[(2 + index_1) % 6] = single_particle
+                        newparticles[(4 + index_1) % 6] = -single_particle
+                    else:
+                        newparticles[(0 + index_1) % 6] = -single_particle
+                        newparticles[(2 + index_1) % 6] = -single_particle
+                        newparticles[(4 + index_1) % 6] = single_particle
+
+            else:
+                newparticles[nonzero_indices] = 0
+                if (single_particle is None):
+                    newparticles[(1 + index_1) % 6] = particles[index_1]
+                    newparticles[(3 + index_1) % 6] = particles[index_1]
+                    newparticles[(5 + index_1) % 6] = particles[index_1]
+                else:
+                    rand2 = np.random.uniform()
+                    if (rand2 < 1/3):
+                        newparticles[(1 + index_1) % 6] = single_particle
+                        newparticles[(3 + index_1) % 6] = -single_particle
+                        newparticles[(5 + index_1) % 6] = -single_particle
+                    elif (rand2 > 1/3 and rand2 < 2/3):
+                        newparticles[(1 + index_1) % 6] = -single_particle
+                        newparticles[(3 + index_1) % 6] = single_particle
+                        newparticles[(5 + index_1) % 6] = -single_particle
+                    else:
+                        newparticles[(1 + index_1) % 6] = -single_particle
+                        newparticles[(3 + index_1) % 6] = -single_particle
+                        newparticles[(5 + index_1) % 6] = single_particle
+
+        elif (new_momentum_diff_12 == 4):
+            rand1 = np.random.uniform()
+            if (rand1 < 1/3):
+                if (single_particle is not None):
+                    #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                    newparticles[nonzero_indices] = 0
+                    rand2 = np.random.uniform()
+                    if (rand2 < 1/3):
+                        newparticles[(new_index_1 + index_1) % 6] = single_particle
+                        newparticles[(new_index_2 + index_1) % 6] = -single_particle
+                        newparticles[6] = -single_particle
+                    elif (rand2 > 1/3 and rand2 < 2/3):
+                        newparticles[(new_index_1 + index_1) % 6] = -single_particle
+                        newparticles[(new_index_2 + index_1) % 6] = single_particle
+                        newparticles[6] = -single_particle
+                    else:
+                        newparticles[(new_index_1 + index_1) % 6] = -single_particle
+                        newparticles[(new_index_2 + index_1) % 6] = -single_particle
+                        newparticles[6] = single_particle
+                    
+            elif (rand1 > 1/3 and rand1 < 2/3):
+                newparticles[nonzero_indices] = 0
+                if (single_particle is None):
+                    newparticles[(0 + index_1) % 6] = particles[index_1]
+                    newparticles[(3 + index_1) % 6] = particles[index_1]
+                    newparticles[(5 + index_1) % 6] = particles[index_1]
+                else:
+                    rand2 = np.random.uniform()
+                    if (rand2 < 1/3):
+                        newparticles[(0 + index_1) % 6] = single_particle
+                        newparticles[(3 + index_1) % 6] = -single_particle
+                        newparticles[(5 + index_1) % 6] = -single_particle
+                    elif (rand2 > 1/3 and rand2 < 2/3):
+                        newparticles[(0 + index_1) % 6] = -single_particle
+                        newparticles[(3 + index_1) % 6] = single_particle
+                        newparticles[(5 + index_1) % 6] = -single_particle
+                    else:
+                        newparticles[(0 + index_1) % 6] = -single_particle
+                        newparticles[(3 + index_1) % 6] = -single_particle
+                        newparticles[(5 + index_1) % 6] = single_particle
+
+            else:
+                newparticles[nonzero_indices] = 0
+                if (single_particle is None):
+                    newparticles[(1 + index_1) % 6] = particles[index_1]
+                    newparticles[(4 + index_1) % 6] = particles[index_1]
+                    newparticles[(5 + index_1) % 6] = particles[index_1]
+                else:
+                    rand2 = np.random.uniform()
+                    if (rand2 < 1/3):
+                        newparticles[(1 + index_1) % 6] = single_particle
+                        newparticles[(4 + index_1) % 6] = -single_particle
+                        newparticles[(5 + index_1) % 6] = -single_particle
+                    elif (rand2 > 1/3 and rand2 < 2/3):
+                        newparticles[(1 + index_1) % 6] = -single_particle
+                        newparticles[(4 + index_1) % 6] = single_particle
+                        newparticles[(5 + index_1) % 6] = -single_particle
+                    else:
+                        newparticles[(1 + index_1) % 6] = -single_particle
+                        newparticles[(4 + index_1) % 6] = -single_particle
+                        newparticles[(5 + index_1) % 6] = single_particle
+
+        elif (new_momentum_diff_12 == 5):
+            #TODO exclude the non-scattered permutation
+            if (single_particle is not None):
+                #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                newparticles[nonzero_indices] = 0
+                rand = np.random.uniform()
+                if (rand < 1/3):
+                    newparticles[(new_index_1 + index_1) % 6] = single_particle
+                    newparticles[(new_index_2 + index_1) % 6] = -single_particle
+                    newparticles[6] = -single_particle
+                elif (rand > 1/3 and rand < 2/3):
+                    newparticles[(new_index_1 + index_1) % 6] = -single_particle
+                    newparticles[(new_index_2 + index_1) % 6] = single_particle
+                    newparticles[6] = -single_particle
+                else:
+                    newparticles[(new_index_1 + index_1) % 6] = -single_particle
+                    newparticles[(new_index_2 + index_1) % 6] = -single_particle
+                    newparticles[6] = single_particle
+
+    else:
+        if (momentum_diff_12 == 1):
+            if (momentum_diff_23 == 1):
+                #TODO exclude the non-scattered permutation
+                if (single_particle is not None):
+                    #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                    newparticles[nonzero_indices] = 0
+                    rand = np.random.uniform()
+                    if (rand < 1/3):
+                        newparticles[index_1] = single_particle
+                        newparticles[index_2] = -single_particle
+                        newparticles[index_3] = -single_particle
+                    elif (rand > 1/3 and rand < 2/3):
+                        newparticles[index_1] = -single_particle
+                        newparticles[index_2] = single_particle
+                        newparticles[index_3] = -single_particle
+                    else:
+                        newparticles[index_1] = -single_particle
+                        newparticles[index_2] = -single_particle
+                        newparticles[index_3] = single_particle
+            
+            elif (momentum_diff_23 == 2):
+                rand1 = np.random.uniform()
+                if (rand1 < 1/3):
+                    if (single_particle is not None):
+                        #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                        newparticles[nonzero_indices] = 0
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[index_1] = single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = single_particle
+                            newparticles[index_3] = -single_particle
+                        else:
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = single_particle
+                        
+                elif (rand1 > 1/3 and rand1 < 2/3):
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(1 + index_1) % 6] = particles[index_1]
+                        newparticles[(2 + index_1) % 6] = particles[index_1]
+                        newparticles[(5 + index_1) % 6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(1 + index_1) % 6] = single_particle
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(2 + index_1) % 6] = single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        else:
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = single_particle
+
+                else:
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(0 + index_1) % 6] = particles[index_1]
+                        newparticles[(2 + index_1) % 6] = particles[index_1]
+                        newparticles[6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(0 + index_1) % 6] = single_particle
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(2 + index_1) % 6] = single_particle
+                            newparticles[6] = -single_particle
+                        else:
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[6] = single_particle
+            
+            elif (momentum_diff_23 == 3):
+                
+                rand1 = np.random.uniform()
+                if (rand1 < 1/3):
+                    if (single_particle is not None):
+                        #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                        newparticles[nonzero_indices] = 0
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[index_1] = single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = single_particle
+                            newparticles[index_3] = -single_particle
+                        else:
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = single_particle
+                        
+                elif (rand1 > 1/3 and rand1 < 2/3):
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(0 + index_1) % 6] = particles[index_1]
+                        newparticles[(2 + index_1) % 6] = particles[index_1]
+                        newparticles[(5 + index_1) % 6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(0 + index_1) % 6] = single_particle
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(2 + index_1) % 6] = single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        else:
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = single_particle
+
+                else:
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(1 + index_1) % 6] = particles[index_1]
+                        newparticles[(5 + index_1) % 6] = particles[index_1]
+                        newparticles[6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(1 + index_1) % 6] = single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                            newparticles[6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = single_particle
+                            newparticles[6] = -single_particle
+                        else:
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                            newparticles[6] = single_particle
+
+            elif (momentum_diff_23 == 4):
+                #TODO exclude the non-scattered permutation
+                if (single_particle is not None):
+                    #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                    newparticles[nonzero_indices] = 0
+                    rand = np.random.uniform()
+                    if (rand < 1/3):
+                        newparticles[index_1] = single_particle
+                        newparticles[index_2] = -single_particle
+                        newparticles[index_3] = -single_particle
+                    elif (rand > 1/3 and rand < 2/3):
+                        newparticles[index_1] = -single_particle
+                        newparticles[index_2] = single_particle
+                        newparticles[index_3] = -single_particle
+                    else:
+                        newparticles[index_1] = -single_particle
+                        newparticles[index_2] = -single_particle
+                        newparticles[index_3] = single_particle
+        
+        elif (momentum_diff_12 == 2):
+            if (momentum_diff_23 == 1):
+                rand1 = np.random.uniform()
+                if (rand1 < 1/3):
+                    if (single_particle is not None):
+                        #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                        newparticles[nonzero_indices] = 0
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[index_1] = single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = single_particle
+                            newparticles[index_3] = -single_particle
+                        else:
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = single_particle
+                        
+                elif (rand1 > 1/3 and rand1 < 2/3):
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(1 + index_1) % 6] = particles[index_1]
+                        newparticles[(2 + index_1) % 6] = particles[index_1]
+                        newparticles[(5 + index_1) % 6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(1 + index_1) % 6] = single_particle
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(2 + index_1) % 6] = single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        else:
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = single_particle
+
+                else:
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(0 + index_1) % 6] = particles[index_1]
+                        newparticles[(2 + index_1) % 6] = particles[index_1]
+                        newparticles[6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(0 + index_1) % 6] = single_particle
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(2 + index_1) % 6] = single_particle
+                            newparticles[6] = -single_particle
+                        else:
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[6] = single_particle
+
+            elif (momentum_diff_23 == 2):
+                rand1 = np.random.uniform()
+                if (rand1 < 0.2):
+                    if (single_particle is not None):
+                        #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                        newparticles[nonzero_indices] = 0
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[index_1] = single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = single_particle
+                            newparticles[index_3] = -single_particle
+                        else:
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = single_particle
+                        
+                elif (rand1 > 0.2 and rand1 < 0.4):
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(1 + index_1) % 6] = particles[index_1]
+                        newparticles[(3 + index_1) % 6] = particles[index_1]
+                        newparticles[(5 + index_1) % 6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(1 + index_1) % 6] = single_particle
+                            newparticles[(3 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(3 + index_1) % 6] = single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        else:
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(3 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = single_particle
+
+                elif (rand1 > 0.4 and rand1 < 0.6):
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(0 + index_1) % 6] = particles[index_1]
+                        newparticles[(3 + index_1) % 6] = particles[index_1]
+                        newparticles[6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(0 + index_1) % 6] = single_particle
+                            newparticles[(3 + index_1) % 6] = -single_particle
+                            newparticles[6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(3 + index_1) % 6] = single_particle
+                            newparticles[6] = -single_particle
+                        else:
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(3 + index_1) % 6] = -single_particle
+                            newparticles[6] = single_particle
+
+                elif (rand1 > 0.6 and rand1 < 0.8):
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(1 + index_1) % 6] = particles[index_1]
+                        newparticles[(4 + index_1) % 6] = particles[index_1]
+                        newparticles[6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(1 + index_1) % 6] = single_particle
+                            newparticles[(4 + index_1) % 6] = -single_particle
+                            newparticles[6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(4 + index_1) % 6] = single_particle
+                            newparticles[6] = -single_particle
+                        else:
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(4 + index_1) % 6] = -single_particle
+                            newparticles[6] = single_particle
+
+                else:
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(2 + index_1) % 6] = particles[index_1]
+                        newparticles[(5 + index_1) % 6] = particles[index_1]
+                        newparticles[6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(2 + index_1) % 6] = single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                            newparticles[6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = single_particle
+                            newparticles[6] = -single_particle
+                        else:
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                            newparticles[6] = single_particle
+
+            
+            elif (momentum_diff_23 == 3):
+                rand1 = np.random.uniform()
+                if (rand1 < 1/3):
+                    if (single_particle is not None):
+                        #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                        newparticles[nonzero_indices] = 0
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[index_1] = single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = single_particle
+                            newparticles[index_3] = -single_particle
+                        else:
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = single_particle
+                        
+                elif (rand1 > 1/3 and rand1 < 2/3):
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(0 + index_1) % 6] = particles[index_1]
+                        newparticles[(1 + index_1) % 6] = particles[index_1]
+                        newparticles[(4 + index_1) % 6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(0 + index_1) % 6] = single_particle
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(4 + index_1) % 6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(1 + index_1) % 6] = single_particle
+                            newparticles[(4 + index_1) % 6] = -single_particle
+                        else:
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(4 + index_1) % 6] = single_particle
+
+                else:
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(1 + index_1) % 6] = particles[index_1]
+                        newparticles[(5 + index_1) % 6] = particles[index_1]
+                        newparticles[6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(1 + index_1) % 6] = single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                            newparticles[6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = single_particle
+                            newparticles[6] = -single_particle
+                        else:
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                            newparticles[6] = single_particle
+            
+        elif (momentum_diff_12 == 3):
+            if (momentum_diff_23 == 1):
+                rand1 = np.random.uniform()
+                if (rand1 < 1/3):
+                    if (single_particle is not None):
+                        #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                        newparticles[nonzero_indices] = 0
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[index_1] = single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = single_particle
+                            newparticles[index_3] = -single_particle
+                        else:
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = single_particle
+                        
+                elif (rand1 > 1/3 and rand1 < 2/3):
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(2 + index_1) % 6] = particles[index_1]
+                        newparticles[(4 + index_1) % 6] = particles[index_1]
+                        newparticles[(5 + index_1) % 6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(2 + index_1) % 6] = single_particle
+                            newparticles[(4 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[(4 + index_1) % 6] = single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        else:
+                            newparticles[(2 + index_1) % 6] = -single_particle
+                            newparticles[(4 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = single_particle
+
+                else:
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(3 + index_1) % 6] = particles[index_1]
+                        newparticles[(5 + index_1) % 6] = particles[index_1]
+                        newparticles[6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(3 + index_1) % 6] = single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                            newparticles[6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(3 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = single_particle
+                            newparticles[6] = -single_particle
+                        else:
+                            newparticles[(3 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                            newparticles[6] = single_particle
+            
+            elif (momentum_diff_23 == 2):
+                rand1 = np.random.uniform()
+                if (rand1 < 1/3):
+                    if (single_particle is not None):
+                        #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                        newparticles[nonzero_indices] = 0
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[index_1] = single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = single_particle
+                            newparticles[index_3] = -single_particle
+                        else:
+                            newparticles[index_1] = -single_particle
+                            newparticles[index_2] = -single_particle
+                            newparticles[index_3] = single_particle
+                        
+                elif (rand1 > 1/3 and rand1 < 2/3):
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(1 + index_1) % 6] = particles[index_1]
+                        newparticles[(4 + index_1) % 6] = particles[index_1]
+                        newparticles[(5 + index_1) % 6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(1 + index_1) % 6] = single_particle
+                            newparticles[(4 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(4 + index_1) % 6] = single_particle
+                            newparticles[(5 + index_1) % 6] = -single_particle
+                        else:
+                            newparticles[(1 + index_1) % 6] = -single_particle
+                            newparticles[(4 + index_1) % 6] = -single_particle
+                            newparticles[(5 + index_1) % 6] = single_particle
+
+                else:
+                    newparticles[nonzero_indices] = 0
+                    if (single_particle is None):
+                        newparticles[(0 + index_1) % 6] = particles[index_1]
+                        newparticles[(4 + index_1) % 6] = particles[index_1]
+                        newparticles[6] = particles[index_1]
+                    else:
+                        rand2 = np.random.uniform()
+                        if (rand2 < 1/3):
+                            newparticles[(0 + index_1) % 6] = single_particle
+                            newparticles[(4 + index_1) % 6] = -single_particle
+                            newparticles[6] = -single_particle
+                        elif (rand2 > 1/3 and rand2 < 2/3):
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(4 + index_1) % 6] = single_particle
+                            newparticles[6] = -single_particle
+                        else:
+                            newparticles[(0 + index_1) % 6] = -single_particle
+                            newparticles[(4 + index_1) % 6] = -single_particle
+                            newparticles[6] = single_particle
+        
+        elif (momentum_diff_12 == 4):
+            if (momentum_diff_23 == 1):
+                #TODO exclude the non-scattered permutation
+                if (single_particle is not None):
+                    #! You set newparticles = 0 for all cases. If you want to exclude a case, check it.
+                    newparticles[nonzero_indices] = 0
+                    rand = np.random.uniform()
+                    if (rand < 1/3):
+                        newparticles[index_1] = single_particle
+                        newparticles[index_2] = -single_particle
+                        newparticles[index_3] = -single_particle
+                    elif (rand > 1/3 and rand < 2/3):
+                        newparticles[index_1] = -single_particle
+                        newparticles[index_2] = single_particle
+                        newparticles[index_3] = -single_particle
+                    else:
+                        newparticles[index_1] = -single_particle
+                        newparticles[index_2] = -single_particle
+                        newparticles[index_3] = single_particle
+
+    return newparticles
+
+@njit
+def scattering_probability(particles, w,h, x,y, dir, constants):
+
+    xplus1 = (x+1)%w
+    yplus1 = (y+1)%h
+    yplus2 = (y+2)%h
+    xplus2 = (x+2)%w
+    xplus3 = (x+3)%w
+    xplus4 = (x+4)%w
+    base_probability = constants[2]
+    threshold_one = constants[3]
+    threshold_two = constants[4]
+
+    first_neighbors =  particles[dir, xplus2, y] + particles[dir, xplus1, yplus1] + particles[dir, x-1, yplus1] +  \
+        particles [dir, x-2, y] + particles[dir, x-1, y-1] + particles[dir, xplus1, y-1]
+    
+    second_neighbors = particles[dir, xplus4, y] + particles[dir, xplus3, yplus1] + particles[dir, xplus2, yplus2] + \
+        particles[dir, x, yplus2] + particles[dir, x-2, yplus2] + particles[dir, x-3, yplus1] + \
+        particles[dir, x-4, y] + particles[dir, x-3, y-1] + particles[dir, x-2, y-2] + particles[dir, x, y-2] + \
+        particles[dir, xplus2, y-2] + particles[dir, xplus3, y-1]
+    
+    total_neighbors = constants[0] * first_neighbors + constants[1] * second_neighbors
+
+    probability = base_probability
+    if (total_neighbors > threshold_one):
+        probability = np.maximum(0, base_probability * (threshold_two - total_neighbors) / (threshold_two - threshold_one))
+
+    return probability
+   
+
+
+
+
+
+    
+
+    
+
+    
+
+
