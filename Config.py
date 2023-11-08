@@ -1,7 +1,7 @@
 import numpy as np
 
 # * If you want any of interactions create photon, set their boolean True
-Sticking_photon = False
+Sticking_photon = True
 Protonaction_photon = True
 Neutronaction_photon = True
 
@@ -17,16 +17,13 @@ photon_creation_map = {
 # Specify the order in which functions should be executed. If you do not want a function to operate, you should not put its name in this list.
 #! It is sensitive to capital or small letter
 execution_order = [
-    'count_particles',
+    # 'count_particles',
     'propagation_prot_neut_step',
     'propagation_photon_step',
-    #'count_particles',
     'sticking_step',
-    #'scattering_step',
-    #'count_particles',
+    # 'scattering_step',
     #'protonaction_step',
     #'neutronaction_step',
-    #'count_particles',
     'absorption_step'
 ]
 
@@ -46,10 +43,11 @@ constants_dict = {
     "Sticking_w3_input": 0,
     "Sticking_w4_input": 0,
 
-    #Thresholds for deciding whether sticking happens or not; if incidence of one direction is more than or equal to high, and others less than low
+    #Thresholds for deciding whether sticking happens or not; if the frequency of only one direction is more than threshold, then sticking happens.
     #These numbers should always be considered as a number out of 6 (since we normalized our weights)
-    "Sticking_high_threshold": 4,
-    "Sticking_low_threshold": 4,
+    "Sticking_move_to_move_threshold": 4,
+    "Sticking_move_to_rest_threshold": 4,
+    "Sticking_rest_to_move_threshold": 4,
 
     #weight1 and weight2 are the weight of first and second neighbours respectively in scattering
     "Scattering_weight1": 1,
@@ -83,7 +81,7 @@ def normal_random_particles(threshold,W,H):
     tmp2 = particles >= -threshold
     tmp3 = tmp1 * tmp2
     particles = np.where(tmp3,0,particles)
-    particles = np.where(particles > threshold,1,particles)
+    particles = np.where(particles > threshold,-1,particles)
     particles = np.where(particles < -threshold,-1,particles)
     particles = particles.astype(np.int16)
 
@@ -101,12 +99,12 @@ def manual_particles(W,H, protons = np.ndarray, neutrons = np.ndarray):
     return particles
 
 
-Normal_rand_particles_threshold = 2
+Normal_rand_particles_threshold = 2.5
 
 #Setting the initial array for protons and neutrons manually
 #first component is direction and second and third components are position of particles
 #! If you don't want to have protons or neutrons, you should define the initial numpy array and set it empty (np.array([]))
-Initial_protons = np.array([[0,2,3],[3,5,2],[3,7,2],[3,7,4],[3,6,3]])
+Initial_protons = np.array([[0,2,3],[3,3,2],[3,5,2],[3,5,4],[3,3,4],[1,3,2],[2,5,2],[5,5,4],[6,3,4]])
 Initial_neutrons = np.array([])
 
 #Initial_particles = manual_particles(Width, Height, Initial_protons, Initial_neutrons)

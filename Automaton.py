@@ -105,10 +105,7 @@ class SMCA_Triangular(Automaton):
         self._worldmap[:,:,0]=(self.proton.sum(axis = 0)/1.)[:,:]
 
         self.steps_cnt += 1
-        
 
-        
-        
         
     def propagation_prot_neut_step(self):
         """
@@ -128,7 +125,10 @@ class SMCA_Triangular(Automaton):
         Does the sticking step of the automaton
         """
         #creating a numpy array for constants to give them to sticking_cpu that is using Numba
-        sticking_constants = np.array([self.constants["Probability_of_sticking"] , self.constants["Sticking_w1_input"] , self.constants["Sticking_w2_input"] , self.constants["Sticking_w3_input"] , self.constants["Sticking_w4_input"], self.constants["Sticking_high_threshold"], self.constants["Sticking_low_threshold"] ])
+        sticking_constants = np.array([self.constants["Probability_of_sticking"] , self.constants["Sticking_w1_input"] , \
+        self.constants["Sticking_w2_input"] , self.constants["Sticking_w3_input"] , self.constants["Sticking_w4_input"], \
+        self.constants["Sticking_move_to_move_threshold"] , self.constants["Sticking_move_to_rest_threshold"] , \
+        self.constants["Sticking_rest_to_move_threshold"]])
         (self.particles,self.photons) = sticking_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_config[self.photon_creation_map.get('Sticking_photon')],sticking_constants)
     
     def scattering_step(self):
@@ -202,10 +202,6 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
             
             if (total_particles[x,y] == 1):
                 
-                yplus1 = (y+1)%h
-                xplus1 = (x+1)%w
-                xplus2 = (x+2)%w
-
                 #Defining weights; w1: the particle which incoming particle is facing, w2: two neighbors of w1, w3: two neighbors of w2s, w4: only neighbor of w3s
                 w_sum = constants[1] + 2 * constants[2] + 2 * constants[3] + constants[4]
 
@@ -214,332 +210,228 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
                 w2 = constants[2] * 6 / w_sum
                 w3 = constants[3] * 6 / w_sum
                 w4 = constants[4] * 6 / w_sum
-                
+                weights = np.array([w1,w2,w3,w4])
 
                 #moving in E direction   
                 if (absparticles[0,x,y] == 1):
-                    SE = w1 * (absparticles[1,xplus2,y]) + w2 * (absparticles[1,xplus1,y-1] + absparticles[1,xplus1,yplus1]) + w3 * (absparticles[1,x-1,y-1] + absparticles[1,x-1,yplus1]) + w4 * (absparticles[1,x-2,y])
-                    SW = w1 * (absparticles[2,xplus2,y]) + w2 * (absparticles[2,xplus1,y-1] + absparticles[2,xplus1,yplus1]) + w3 * (absparticles[2,x-1,y-1] + absparticles[2,x-1,yplus1]) + w4 * (absparticles[2,x-2,y])
-                    W = w1 * (absparticles[3,xplus2,y]) + w2 * (absparticles[3,xplus1,y-1] + absparticles[3,xplus1,yplus1]) + w3 * (absparticles[3,x-1,y-1] + absparticles[3,x-1,yplus1]) + w4 * (absparticles[3,x-2,y])
-                    NW = w1 * (absparticles[4,xplus2,y]) + w2 * (absparticles[4,xplus1,y-1] + absparticles[4,xplus1,yplus1]) + w3 * (absparticles[4,x-1,y-1] + absparticles[4,x-1,yplus1]) + w4 * (absparticles[4,x-2,y])
-                    NE = w1 * (absparticles[5,xplus2,y]) + w2 * (absparticles[5,xplus1,y-1] + absparticles[5,xplus1,yplus1]) + w3 * (absparticles[5,x-1,y-1] + absparticles[5,x-1,yplus1]) + w4 * (absparticles[5,x-2,y])
+                    previousdir = 0
+                    directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
-                    #Finding out which direction is dominant, if any
-                    incidence = np.array([SE, SW, W, NW, NE])
-
-                    #Check if only one element is greater than or equal to 'high'
-                    condition1 = np.sum(incidence >= constants[5]) == 1
-
-                    #Check if all other elements (excluding the one that meets condition 1) are less than 'low'
-                    condition2 = np.all(incidence[incidence < constants[5]] < constants[6])
-
-                    #Find the index of the element that is greater than or equal to 'high'
-                    if condition1 and condition2:
-                        index_of_bigger = np.where(incidence >= constants[5])[0][0]
-
-
+                    #finding out whether the rest is the dominant state of the neighbors
+                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                        newdir = 6
                         if np.random.uniform() <= constants[0]:
-                            previousdir = 0
-                            newdir = index_of_bigger + 1
                             newparticles[previousdir,x,y] = 0
                             newparticles[newdir,x,y] = particles[previousdir,x,y]
 
                             #creating photon(s) to conserve momentum
                             if (create_photon):
-                                momentum_difference = (newdir - previousdir) % 6
+                                photons[:,x,y] += photon_creation(previousdir, newdir)
+                    
+                    else:
 
-                                if(momentum_difference == 0):
-                                    photons[previousdir ,x,y] += 1
-                                
-                                elif(momentum_difference == 1):
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 2):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 3):
-                                    photons[previousdir ,x,y] += 2
-                                
-                                elif(momentum_difference == 4):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 5):
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
+                        #Finding out which moving direction is dominant, if any
+                        if (np.sum(directions_frequency >= constants[5]) == 1):
+                            #Find the index of the element that is greater than or equal to 'threshold'
+                            newdir = np.where(directions_frequency >= constants[5])[0][0]
 
+                            if (newdir != 6):
+
+                                if np.random.uniform() <= constants[0]:
+                                    newparticles[previousdir,x,y] = 0
+                                    newparticles[newdir,x,y] = particles[previousdir,x,y]
+
+                                    #creating photon(s) to conserve momentum
+                                    if (create_photon):
+                                        photons[:,x,y] += photon_creation(previousdir, newdir)
 
                 #moving in SE direction   
                 elif (absparticles[1,x,y] == 1):
-                    E = w1 * (absparticles[0,xplus1,yplus1]) + w2 * (absparticles[0,x-1,yplus1] + absparticles[0,xplus2,y]) + w3 * (absparticles[0,x-2,y] +  absparticles[0,xplus1,y-1]) + w4 * (absparticles[0,x-1,y-1])
-                    SW = w1 * (absparticles[2,xplus1,yplus1]) + w2 * (absparticles[2,x-1,yplus1] + absparticles[2,xplus2,y]) + w3 * (absparticles[2,x-2,y] +  absparticles[2,xplus1,y-1]) + w4 * (absparticles[2,x-1,y-1])
-                    W = w1 * (absparticles[3,xplus1,yplus1]) + w2 * (absparticles[3,x-1,yplus1] + absparticles[3,xplus2,y]) + w3 * (absparticles[3,x-2,y] +  absparticles[3,xplus1,y-1]) + w4 * (absparticles[3,x-1,y-1])
-                    NW = w1 *(absparticles[4,xplus1,yplus1]) + w2 * (absparticles[4,x-1,yplus1] + absparticles[4,xplus2,y]) + w3 * (absparticles[4,x-2,y] +  absparticles[4,xplus1,y-1]) + w4 * (absparticles[4,x-1,y-1])
-                    NE = w1 * (absparticles[5,xplus1,yplus1]) + w2 * (absparticles[5,x-1,yplus1] + absparticles[5,xplus2,y]) + w3 * (absparticles[5,x-2,y] +  absparticles[5,xplus1,y-1]) + w4 * (absparticles[5,x-1,y-1])
+                    previousdir = 1
+                    directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
-                    #Finding Out which direction is dominant, if any
-                    incidence = np.array([E, SW, W, NW, NE])
-
-                    # Check if only one element is greater than or equal to 'high'
-                    condition1 = np.sum(incidence >= constants[5]) == 1
-
-                    # Check if all other elements (excluding the one that meets condition 1) are less than 'low'
-                    condition2 = np.all(incidence[incidence < constants[5]] < constants[6])
-
-                    # Find the index of the element that is greater than or equal to 'high'
-                    if condition1 and condition2:
-                        index_of_bigger = np.where(incidence >= constants[5])[0][0]
-
+                    #finding out whether the rest is the dominant state of the neighbors
+                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                        newdir = 6
                         if np.random.uniform() <= constants[0]:
-                            previousdir = 1
-                            newdir = index_of_bigger
-                            if  index_of_bigger > 0:
-                                newdir += 1
                             newparticles[previousdir,x,y] = 0
                             newparticles[newdir,x,y] = particles[previousdir,x,y]
 
                             #creating photon(s) to conserve momentum
                             if (create_photon):
-                                momentum_difference = (newdir - previousdir) % 6
+                                photons[:,x,y] += photon_creation(previousdir, newdir)
+                    
+                    else:
 
-                                if(momentum_difference == 0):
-                                    photons[previousdir ,x,y] += 1
-                                
-                                elif(momentum_difference == 1):
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 2):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 3):
-                                    photons[previousdir ,x,y] += 2
-                                
-                                elif(momentum_difference == 4):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 5):
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
+                        #Finding out which moving direction is dominant, if any
+                        if (np.sum(directions_frequency >= constants[5]) == 1):
+                            #Find the index of the element that is greater than or equal to 'threshold'
+                            newdir = np.where(directions_frequency >= constants[5])[0][0]
+
+                            if (newdir != 6):
+
+                                if np.random.uniform() <= constants[0]:
+                                    newparticles[previousdir,x,y] = 0
+                                    newparticles[newdir,x,y] = particles[previousdir,x,y]
+
+                                    #creating photon(s) to conserve momentum
+                                    if (create_photon):
+                                        photons[:,x,y] += photon_creation(previousdir, newdir)
 
                 
                 # moving in SW direction   
                 elif (absparticles[2,x,y] == 1):
-                    E = w1 * (absparticles[0,x-1,yplus1]) + w2 * (absparticles[0,xplus1,yplus1] + absparticles[0,x-2,y]) + w3 * (absparticles[0,xplus2,y] + absparticles[0,x-1,y-1]) + w4 * (absparticles[0,xplus1,y-1])
-                    SE = w1 * (absparticles[1,x-1,yplus1]) + w2 * (absparticles[1,xplus1,yplus1] + absparticles[1,x-2,y]) + w3 * (absparticles[1,xplus2,y] + absparticles[1,x-1,y-1]) + w4 * (absparticles[1,xplus1,y-1])
-                    W = w1 * (absparticles[3,x-1,yplus1]) + w2 * (absparticles[3,xplus1,yplus1] + absparticles[3,x-2,y]) + w3 * (absparticles[3,xplus2,y] + absparticles[3,x-1,y-1]) + w4 * (absparticles[3,xplus1,y-1])
-                    NW = w1 * (absparticles[4,x-1,yplus1]) + w2 * (absparticles[4,xplus1,yplus1] + absparticles[4,x-2,y]) + w3 * (absparticles[4,xplus2,y] + absparticles[4,x-1,y-1]) + w4 * (absparticles[4,xplus1,y-1])
-                    NE = w1 * (absparticles[5,x-1,yplus1]) + w2 * (absparticles[5,xplus1,yplus1] + absparticles[5,x-2,y]) + w3 * (absparticles[5,xplus2,y] + absparticles[5,x-1,y-1]) + w4 * (absparticles[5,xplus1,y-1])
+                    previousdir = 2
+                    directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
-                    #Finding Out which direction is dominant, if any
-                    incidence = np.array([E, SE, W, NW, NE])
-
-                    # Check if only one element is greater than or equal to 'high'
-                    condition1 = np.sum(incidence >= constants[5]) == 1
-
-                    # Check if all other elements (excluding the one that meets condition 1) are less than 'low'
-                    condition2 = np.all(incidence[incidence < constants[5]] < constants[6])
-
-                    # Find the index of the element that is greater than or equal to 'high'
-                    if condition1 and condition2:
-                        index_of_bigger = np.where(incidence >= constants[5])[0][0]
-
-
+                    #finding out whether the rest is the dominant state of the neighbors
+                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                        newdir = 6
                         if np.random.uniform() <= constants[0]:
-                            previousdir = 2
-                            newdir = index_of_bigger
-                            if  index_of_bigger > 1:
-                                newdir += 1
                             newparticles[previousdir,x,y] = 0
                             newparticles[newdir,x,y] = particles[previousdir,x,y]
 
                             #creating photon(s) to conserve momentum
                             if (create_photon):
-                                momentum_difference = (newdir - previousdir) % 6
+                                photons[:,x,y] += photon_creation(previousdir, newdir)
+                    
+                    else:
 
-                                if(momentum_difference == 0):
-                                    photons[previousdir ,x,y] += 1
-                                
-                                elif(momentum_difference == 1):
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 2):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 3):
-                                    photons[previousdir ,x,y] += 2
-                                
-                                elif(momentum_difference == 4):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 5):
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
+                        #Finding out which moving direction is dominant, if any
+                        if (np.sum(directions_frequency >= constants[5]) == 1):
+                            #Find the index of the element that is greater than or equal to 'threshold'
+                            newdir = np.where(directions_frequency >= constants[5])[0][0]
+
+                            if (newdir != 6):
+
+                                if np.random.uniform() <= constants[0]:
+                                    newparticles[previousdir,x,y] = 0
+                                    newparticles[newdir,x,y] = particles[previousdir,x,y]
+
+                                    #creating photon(s) to conserve momentum
+                                    if (create_photon):
+                                        photons[:,x,y] += photon_creation(previousdir, newdir)
 
 
                 #moving in W direction   
                 elif (absparticles[3,x,y] == 1):
-                    E = w1 * (absparticles[0,x-2,y]) + w2 * (absparticles[0,x-1,yplus1] + absparticles[0,x-1,y-1]) + w3 * (absparticles[0,xplus1,y-1] + absparticles[0,xplus1,yplus1]) + w4 * (absparticles[0,xplus2,y])
-                    SE = w1 * (absparticles[1,x-2,y]) + w2 * (absparticles[1,x-1,yplus1] + absparticles[1,x-1,y-1]) + w3 * (absparticles[1,xplus1,y-1] + absparticles[1,xplus1,yplus1]) + w4 * (absparticles[1,xplus2,y])
-                    SW = w1 * (absparticles[2,x-2,y]) + w2 * (absparticles[2,x-1,yplus1] + absparticles[2,x-1,y-1]) + w3 * (absparticles[2,xplus1,y-1] + absparticles[2,xplus1,yplus1]) + w4 * (absparticles[2,xplus2,y])
-                    NW = w1 * (absparticles[4,x-2,y]) + w2 * (absparticles[4,x-1,yplus1] + absparticles[4,x-1,y-1]) + w3 * (absparticles[4,xplus1,y-1] + absparticles[4,xplus1,yplus1]) + w4 * (absparticles[4,xplus2,y])
-                    NE = w1 * (absparticles[5,x-2,y]) + w2 * (absparticles[5,x-1,yplus1] + absparticles[5,x-1,y-1]) + w3 * (absparticles[5,xplus1,y-1] + absparticles[5,xplus1,yplus1]) + w4 * (absparticles[5,xplus2,y])
+                    previousdir = 3
+                    directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
-                    #Finding Out which direction is dominant, if any
-                    incidence = np.array([E, SE, SW, NW, NE])
-
-                    # Check if only one element is greater than or equal to 'high'
-                    condition1 = np.sum(incidence >= constants[5]) == 1
-
-                    # Check if all other elements (excluding the one that meets condition 1) are less than 'low'
-                    condition2 = np.all(incidence[incidence < constants[5]] < constants[6])
-
-                    # Find the index of the element that is greater than or equal to 'high'
-                    if condition1 and condition2:
-                        index_of_bigger = np.where(incidence >= constants[5])[0][0]
-
-
+                    #finding out whether the rest is the dominant state of the neighbors
+                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                        newdir = 6
                         if np.random.uniform() <= constants[0]:
-                            previousdir = 3
-                            newdir = index_of_bigger
-                            if  index_of_bigger > 2:
-                                newdir += 1
                             newparticles[previousdir,x,y] = 0
                             newparticles[newdir,x,y] = particles[previousdir,x,y]
 
                             #creating photon(s) to conserve momentum
                             if (create_photon):
-                                momentum_difference = (newdir - previousdir) % 6
+                                photons[:,x,y] += photon_creation(previousdir, newdir)
+                    
+                    else:
 
-                                if(momentum_difference == 0):
-                                    photons[previousdir ,x,y] += 1
-                                
-                                elif(momentum_difference == 1):
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 2):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 3):
-                                    photons[previousdir ,x,y] += 2
-                                
-                                elif(momentum_difference == 4):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 5):
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
+                        #Finding out which moving direction is dominant, if any
+                        if (np.sum(directions_frequency >= constants[5]) == 1):
+                            #Find the index of the element that is greater than or equal to 'threshold'
+                            newdir = np.where(directions_frequency >= constants[5])[0][0]
+
+                            if (newdir != 6):
+
+                                if np.random.uniform() <= constants[0]:
+                                    newparticles[previousdir,x,y] = 0
+                                    newparticles[newdir,x,y] = particles[previousdir,x,y]
+
+                                    #creating photon(s) to conserve momentum
+                                    if (create_photon):
+                                        photons[:,x,y] += photon_creation(previousdir, newdir)
 
 
                 #moving in NW direction   
                 elif (absparticles[4,x,y] == 1):
-                    E = w1 * (absparticles[0,x-1,y-1]) + w2 * (absparticles[0,xplus1,y-1] + absparticles[0,x-2,y]) + w3 * (absparticles[0,x-1,yplus1] + absparticles[0,xplus2,y]) + w4 * (absparticles[0,xplus1,yplus1])
-                    SE = w1 * (absparticles[1,x-1,y-1]) + w2 * (absparticles[1,xplus1,y-1] + absparticles[1,x-2,y]) + w3 * (absparticles[1,x-1,yplus1] + absparticles[1,xplus2,y]) + w4 * (absparticles[1,xplus1,yplus1])
-                    SW = w1 * (absparticles[2,x-1,y-1]) + w2 * (absparticles[2,xplus1,y-1] + absparticles[2,x-2,y]) + w3 * (absparticles[2,x-1,yplus1] + absparticles[2,xplus2,y]) + w4 * (absparticles[2,xplus1,yplus1])
-                    W = w1 * (absparticles[3,x-1,y-1]) + w2 * (absparticles[3,xplus1,y-1] + absparticles[3,x-2,y]) + w3 * (absparticles[3,x-1,yplus1] + absparticles[3,xplus2,y]) + w4 * (absparticles[3,xplus1,yplus1])
-                    NE = w1 * (absparticles[5,x-1,y-1]) + w2 * (absparticles[5,xplus1,y-1] + absparticles[5,x-2,y]) + w3 * (absparticles[5,x-1,yplus1] + absparticles[5,xplus2,y]) + w4 * (absparticles[5,xplus1,yplus1])
+                    previousdir = 4
+                    directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
-                    #Finding Out which direction is dominant, if any
-                    incidence = np.array([E, SE, SW, W, NE])
-
-                    # Check if only one element is greater than or equal to 'high'
-                    condition1 = np.sum(incidence >= constants[5]) == 1
-
-                    # Check if all other elements (excluding the one that meets condition 1) are less than 'low'
-                    condition2 = np.all(incidence[incidence < constants[5]] < constants[6])
-
-                    # Find the index of the element that is greater than or equal to 'high'
-                    if condition1 and condition2:
-                        index_of_bigger = np.where(incidence >= constants[5])[0][0]
-
-
+                    #finding out whether the rest is the dominant state of the neighbors
+                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                        newdir = 6
                         if np.random.uniform() <= constants[0]:
-                            previousdir = 4
-                            newdir = index_of_bigger
-                            if  index_of_bigger > 3:
-                                newdir += 1
                             newparticles[previousdir,x,y] = 0
                             newparticles[newdir,x,y] = particles[previousdir,x,y]
 
                             #creating photon(s) to conserve momentum
                             if (create_photon):
-                                momentum_difference = (newdir - previousdir) % 6
+                                photons[:,x,y] += photon_creation(previousdir, newdir)
+                    
+                    else:
 
-                                if(momentum_difference == 0):
-                                    photons[previousdir ,x,y] += 1
-                                
-                                elif(momentum_difference == 1):
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 2):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 3):
-                                    photons[previousdir ,x,y] += 2
-                                
-                                elif(momentum_difference == 4):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 5):
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
+                        #Finding out which moving direction is dominant, if any
+                        if (np.sum(directions_frequency >= constants[5]) == 1):
+                            #Find the index of the element that is greater than or equal to 'threshold'
+                            newdir = np.where(directions_frequency >= constants[5])[0][0]
+
+                            if (newdir != 6):
+
+                                if np.random.uniform() <= constants[0]:
+                                    newparticles[previousdir,x,y] = 0
+                                    newparticles[newdir,x,y] = particles[previousdir,x,y]
+
+                                    #creating photon(s) to conserve momentum
+                                    if (create_photon):
+                                        photons[:,x,y] += photon_creation(previousdir, newdir)
 
 
                 #moving in NE direction   
                 elif (absparticles[5,x,y] == 1):
-                    E = w1 * (absparticles[0,xplus1,y-1]) + w2 * (absparticles[0,x-1,y-1] + absparticles[0,xplus2,y]) + w3 * (absparticles[0,xplus1,yplus1] + absparticles[0,x-2,y]) + w4 * (absparticles[0,x-1,yplus1])
-                    SE = w1 * (absparticles[1,xplus1,y-1]) + w2 * (absparticles[1,x-1,y-1] + absparticles[1,xplus2,y]) + w3 * (absparticles[1,xplus1,yplus1] + absparticles[1,x-2,y]) + w4 * (absparticles[1,x-1,yplus1])
-                    SW = w1 * (absparticles[2,xplus1,y-1]) + w2 * (absparticles[2,x-1,y-1] + absparticles[2,xplus2,y]) + w3 * (absparticles[2,xplus1,yplus1] + absparticles[2,x-2,y]) + w4 * (absparticles[2,x-1,yplus1])
-                    W = w1 * (absparticles[3,xplus1,y-1]) + w2 * (absparticles[3,x-1,y-1] + absparticles[3,xplus2,y]) + w3 * (absparticles[3,xplus1,yplus1] + absparticles[3,x-2,y]) + w4 * (absparticles[3,x-1,yplus1])
-                    NW = w1 * (absparticles[4,xplus1,y-1]) + w2 * (absparticles[4,x-1,y-1] + absparticles[4,xplus2,y]) + w3 * (absparticles[4,xplus1,yplus1] + absparticles[4,x-2,y]) + w4 * (absparticles[4,x-1,yplus1])
+                    previousdir = 5
+                    directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
-                    #Finding Out which direction is dominant, if any
-                    incidence = np.array([E, SE, SW, W, NW])
-
-                    # Check if only one element is greater than or equal to 'high'
-                    condition1 = np.sum(incidence >= constants[5]) == 1
-
-                    # Check if all other elements (excluding the one that meets condition 1) are less than 'low'
-                    condition2 = np.all(incidence[incidence < constants[5]] < constants[6])
-
-                    # Find the index of the element that is greater than or equal to 'high'
-                    if condition1 and condition2:
-                        index_of_bigger = np.where(incidence >= constants[5])[0][0]
-
-
+                    #finding out whether the rest is the dominant state of the neighbors
+                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                        newdir = 6
                         if np.random.uniform() <= constants[0]:
-                            previousdir = 5
-                            newdir = index_of_bigger
                             newparticles[previousdir,x,y] = 0
                             newparticles[newdir,x,y] = particles[previousdir,x,y]
 
                             #creating photon(s) to conserve momentum
                             if (create_photon):
-                                momentum_difference = (newdir - previousdir) % 6
+                                photons[:,x,y] += photon_creation(previousdir, newdir)
+                    
+                    else:
 
-                                if(momentum_difference == 0):
-                                    photons[previousdir ,x,y] += 1
-                                
-                                elif(momentum_difference == 1):
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 2):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 3):
-                                    photons[previousdir ,x,y] += 2
-                                
-                                elif(momentum_difference == 4):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
-                                
-                                elif(momentum_difference == 5):
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
-    
+                        #Finding out which moving direction is dominant, if any
+                        if (np.sum(directions_frequency >= constants[5]) == 1):
+                            #Find the index of the element that is greater than or equal to 'threshold'
+                            newdir = np.where(directions_frequency >= constants[5])[0][0]
+
+                            if (newdir != 6):
+
+                                if np.random.uniform() <= constants[0]:
+                                    newparticles[previousdir,x,y] = 0
+                                    newparticles[newdir,x,y] = particles[previousdir,x,y]
+
+                                    #creating photon(s) to conserve momentum
+                                    if (create_photon):
+                                        photons[:,x,y] += photon_creation(previousdir, newdir)
+
+                #particle at rest
+                elif (absparticles[6,x,y] == 1):
+                    previousdir = 6
+                    rest_weights = np.array([1,1,1,1])
+                    directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, rest_weights)
+
+                    #Finding out which direction is dominant, if any
+                    if (np.sum(directions_frequency >= constants[7]) == 1):
+                        #Find the index of the element that is greater than or equal to 'threshold'
+                        newdir = np.where(directions_frequency >= constants[7])[0][0]
+
+                        if np.random.uniform() <= constants[0]:
+                            newparticles[previousdir,x,y] = 0
+                            newparticles[newdir,x,y] = particles[previousdir,x,y]
+
+                            #creating photon(s) to conserve momentum
+                            if (create_photon):
+                                photons[:,x,y] += photon_creation(previousdir, newdir)
     
     return (newparticles,photons)
 
@@ -611,33 +503,8 @@ def protonaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_pho
                         newparticles[newdir,x,y] = -1
 
                         #creating photon(s) to conserve momentum
-                        if (create_photon and newdir != previousdir):
-                            if(previousdir == 6):
-                                photons[(newdir + 3) % 6 ,x,y] += 1
-                            
-                            else:
-
-                                momentum_difference = (newdir - previousdir) % 6
-
-                                if(momentum_difference == 0):
-                                    photons[previousdir ,x,y] += 1
-                                    
-                                elif(momentum_difference == 1):
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                    
-                                elif(momentum_difference == 2):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                    
-                                elif(momentum_difference == 3):
-                                    photons[previousdir ,x,y] += 2
-                                    
-                                elif(momentum_difference == 4):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
-                                    
-                                elif(momentum_difference == 5):
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
+                        if (create_photon):
+                            photons[:,x,y] += photon_creation(previousdir, newdir)
             
     return (newparticles,photons)
 
@@ -672,34 +539,9 @@ def neutronaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_ph
                         newparticles[newdir,x,y] = 1
 
                         #creating photon(s) to conserve momentum
-                        if (create_photon and newdir != previousdir):
-                            if(previousdir == 6):
-                                photons[(newdir + 3) % 6 ,x,y] += 1
+                        if (create_photon):
+                            photons[:,x,y] += photon_creation(previousdir, newdir)
                             
-                            else:
-
-                                momentum_difference = (newdir - previousdir) % 6
-
-                                if(momentum_difference == 0):
-                                    photons[previousdir ,x,y] += 1
-                                    
-                                elif(momentum_difference == 1):
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                    
-                                elif(momentum_difference == 2):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(5 + previousdir) % 6 ,x,y] += 1
-                                    
-                                elif(momentum_difference == 3):
-                                    photons[previousdir ,x,y] += 2
-                                    
-                                elif(momentum_difference == 4):
-                                    photons[previousdir ,x,y] += 1
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
-                                    
-                                elif(momentum_difference == 5):
-                                    photons[(1 + previousdir) % 6 ,x,y] += 1
-            
     return (newparticles,photons)
 
 @njit(parallel=True)
@@ -1744,16 +1586,63 @@ def scattering_probability(particles, w,h, x,y, dir, constants):
         probability = np.maximum(0, base_probability * (threshold_two - total_neighbors) / (threshold_two - threshold_one))
 
     return probability
-   
 
+@njit
+def photon_creation(previousdir, newdir):
+    newphotons = np.zeros(6,dtype=np.int64)
+    if (previousdir != newdir):
+        if(previousdir == 6):
+            newphotons[(newdir + 3) % 6] += 1
 
+        elif(newdir == 6):
+            newphotons[previousdir] += 1
+                            
+        else:
 
+            momentum_difference = (newdir - previousdir) % 6
+                                    
+            if(momentum_difference == 1):
+                newphotons[(5 + previousdir) % 6] += 1
+                                    
+            elif(momentum_difference == 2):
+                newphotons[previousdir] += 1
+                newphotons[(5 + previousdir) % 6] += 1
+                                    
+            elif(momentum_difference == 3):
+                newphotons[previousdir] += 2
+                                    
+            elif(momentum_difference == 4):
+                newphotons[previousdir] += 1
+                newphotons[(1 + previousdir) % 6] += 1
+                                    
+            elif(momentum_difference == 5):
+                newphotons[(1 + previousdir) % 6] += 1
+    
+    return newphotons
 
-
+@njit
+def neighbors_directions(movingdir, absparticles, x,y, w,h, weights):
+    yplus1 = (y+1)%h
+    xplus1 = (x+1)%w
+    xplus2 = (x+2)%w
+    
+    #selecting neighbors in order and storing them in a 2-dinensional array (the order is from 0 to 5 based on our direction label)
+    neighbors = np.empty((6, 7), dtype=absparticles.dtype)
+    neighbors[0, :] = absparticles[:, xplus2, y]
+    neighbors[1, :] = absparticles[:, xplus1, yplus1]
+    neighbors[2, :] = absparticles[:, x - 1, yplus1]
+    neighbors[3, :] = absparticles[:, x - 2, y]
+    neighbors[4, :] = absparticles[:, x - 1, y - 1]
+    neighbors[5, :] = absparticles[:, xplus1, y - 1]
     
 
-    
+    #result is a one-dimensional array with 7 items representing frequency of each direction in neighbors with the assigned weights
+    result = np.zeros(7)
 
+    for i in range(7):
+        if (i != movingdir):
+            result[i] = weights[0] * neighbors[movingdir %6 ,i] + weights[1] * (neighbors[(movingdir + 1) %6 ,i] + neighbors[(movingdir - 1) %6, i]) + \
+            weights[2] * (neighbors[(movingdir + 2) %6 ,i] + neighbors[(movingdir - 2) %6 ,i]) + weights[3] * neighbors[(movingdir + 3) %6 ,i]
     
-
+    return result
 
