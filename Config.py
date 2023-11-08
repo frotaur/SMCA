@@ -24,7 +24,8 @@ execution_order = [
     # 'scattering_step',
     #'protonaction_step',
     #'neutronaction_step',
-    'absorption_step'
+    'absorption_step',
+    # 'sink_step'
 ]
 
 Width = 300
@@ -68,7 +69,9 @@ constants_dict = {
     #slope of the line of the linear increase of probability after threshold
     "Prot_Neut_slope": 0.3,
 
-    "Photon_absorption_probability": 0.5
+    "Photon_absorption_probability": 0.5,
+    
+    "sink_size": 30,
 }
 
 #Random array for particles

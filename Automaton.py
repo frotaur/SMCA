@@ -162,6 +162,11 @@ class SMCA_Triangular(Automaton):
         #creating a numpy array for constants to give them to absorption_cpu that is using Numba
         absoprtion_constants = np.array([self.constants["Photon_absorption_probability"]])
         (self.particles,self.photons) = absorption_cpu(self.particles,self.photons,self.w,self.h,absoprtion_constants)
+    
+    def sink_step(self):
+        constants = np.array([self.constants["sink_size"]])
+        (self.particles,self.photons) = sink_cpu(self.particles,self.photons,self.w,self.h,constants)
+        
 
     def count_particles(self):
         """
@@ -1646,3 +1651,18 @@ def neighbors_directions(movingdir, absparticles, x,y, w,h, weights):
     
     return result
 
+
+@njit(parallel=True)
+
+def sink_cpu(particles,photons,w,h,constants):
+    i_low = np.int64(w/2-constants[0]/2)
+    i_high = np.int64(w/2+constants[0]/2)
+    j_low = np.int64(h/2-constants[0]/2)
+    j_high = np.int64(h/2+constants[0]/2)
+    for i in prange(i_low,i_high):
+        for j in prange(j_low,j_high):
+            photons[:,i,j] = 0
+            particles[:,i,j] = 0
+    
+    return particles,photons
+            
