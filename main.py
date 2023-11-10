@@ -1,10 +1,26 @@
 import pygame
 from Camera import Camera
 from Automaton import *
-from Config import *
+from LoadConfig import load_config
+from CreateConfig import make_config
 import cv2
-import os
 
+# Select configuration name to load
+# If 'None', it will use configuration currently defined in CreateConfig.py
+CONFIG_NAME = 'test_config'
+
+if(CONFIG_NAME is None):
+    make_config(temporary=True)
+    CONFIG_NAME = 'current'
+
+
+
+conf_fold = os.path.join(Path(__file__).parent.as_posix(),'configurations')
+
+configo = load_config(os.path.join(conf_fold,f'{CONFIG_NAME}.json'))
+((Width,Height),FPS) = configo['fixed'] # Fixed parameters
+(photon_creation_map,execution_order ,constants_dict) = configo['constants'] # Automaton parameters
+(init_particles,) = configo['init'] # Initialization
 
 # Initialize the pygame screen 
 pygame.init()
@@ -21,7 +37,7 @@ updating = True
 recording = False
 launch_video = False
 
-auto = SMCA_Triangular((Width,Height), photon_creation_map, execution_order, constants_dict, Initial_particles)
+auto = SMCA_Triangular((Width,Height), photon_creation_map, execution_order, constants_dict, init_particles)
 
 while running:
     # poll for events
@@ -38,6 +54,8 @@ while running:
                 recording= not recording
                 if(not launch_video):
                     launch_video=True
+            if(event.key == pygame.K_q):
+                auto.set_parameters(*(load_config(os.path.join(conf_fold,f'no_photon.json'))['constants']),init_particles=None)
         # Handle the event loop for the camera
         camera.handle_event(event)
     

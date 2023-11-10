@@ -1,6 +1,6 @@
 import numpy as np
 from numba import njit, prange,cuda 
-from Config import *
+from CreateConfig import *
 import numba.typed as numt
 import cv2
 import csv
@@ -54,20 +54,23 @@ class SMCA_Triangular(Automaton):
         self.steps_cnt = 0
         # 0,1,2,3,4,5 of the first dimension are the six directions, starting with East, and continuing clockwise
         
-        #create a lattice in which there are some neutrons and protons. 0: nothing, -1: proton, 1: neutron
-        self.particles = Init_particles
-
+        self.set_parameters(photon_creation_map, execution_order, constants, Init_particles)
         #creating an array for photons
         self.photons = np.zeros((6,self.w,self.h),dtype=int) #dimensions of this array are the same with particles and the values of it are the number of photons in that location and direction
         
         self.dir = np.array([[2,0],[1,1],[-1,1],[-2,0],[-1,-1],[1,-1]])  # Contains arrays of the six directions, starting with East, and continuing clockwise
+    
+    
+    def set_parameters(self, photon_creation_map, execution_order, constants, init_particles):
+        #create a lattice in which there are some neutrons and protons. 0: nothing, -1: proton, 1: neutron
+        if(init_particles is not None):
+            self.particles=init_particles
 
-        
-        self.photon_creation_map = photon_creation_map
-        self.photon_creation_config = self.photon_creation_map['config_list']
+        self.photon_create_order = photon_creation_map['order']
+        self.photon_creation_bools = photon_creation_map['bools']
         self.execution_order = execution_order
         self.constants = constants
-
+        
         # This part creates a csv file for the number of particles:
         if 'count_particles' in self.execution_order:
             self.particle_counting_nsteps = self.constants["particle_counting_steps"]   # After each n steps the code gives you a statistics of number of particles
@@ -80,8 +83,7 @@ class SMCA_Triangular(Automaton):
 
             with open(self.filename_particles_direction, 'w', newline='', encoding='utf-8') as f:
                 csv.writer(f).writerow(header)
-    
-    
+
     def step(self):
         """
             Steps the automaton state by one iteration.
@@ -129,7 +131,7 @@ class SMCA_Triangular(Automaton):
         self.constants["Sticking_w2_input"] , self.constants["Sticking_w3_input"] , self.constants["Sticking_w4_input"], \
         self.constants["Sticking_move_to_move_threshold"] , self.constants["Sticking_move_to_rest_threshold"] , \
         self.constants["Sticking_rest_to_move_threshold"]])
-        (self.particles,self.photons) = sticking_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_config[self.photon_creation_map.get('Sticking_photon')],sticking_constants)
+        (self.particles,self.photons) = sticking_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_bools[self.photon_create_order.get('sticking_photon')],sticking_constants)
     
     def scattering_step(self):
         """
@@ -145,7 +147,7 @@ class SMCA_Triangular(Automaton):
         """
         #creating a numpy array for constants to give them to protonaction_cpu that is using Numba
         protonaction_constants = np.array([self.constants["Prot_Neut_weight1"] , self.constants["Prot_Neut_weight2"] , self.constants["Prot_Neut_threshold"] , self.constants["Prot_Neut_slope"] ])
-        (self.particles,self.photons) = protonaction_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_config[self.photon_creation_map.get('Protonaction_photon')],protonaction_constants)
+        (self.particles,self.photons) = protonaction_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_bools[self.photon_create_order.get('protonaction_photon')],protonaction_constants)
         
     def neutronaction_step(self):
         """
@@ -153,7 +155,7 @@ class SMCA_Triangular(Automaton):
         """
         #creating a numpy array for constants to give them to neutronaction_cpu that is using Numba
         neutronaction_constants = np.array([self.constants["Prot_Neut_weight1"] , self.constants["Prot_Neut_weight2"] , self.constants["Prot_Neut_threshold"] , self.constants["Prot_Neut_slope"] ])
-        (self.particles,self.photons) = neutronaction_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_config[self.photon_creation_map.get('Neutronaction_photon')],neutronaction_constants)
+        (self.particles,self.photons) = neutronaction_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_bools[self.photon_create_order.get('neutronaction_photon')],neutronaction_constants)
 
     def absorption_step(self):
         """
@@ -192,7 +194,7 @@ class SMCA_Triangular(Automaton):
         with open(self.filename_particles_direction, 'a', encoding='UTF8', newline='') as f:
             csv.writer(f).writerow(data)
 
-@njit(parallel=True)
+@njit(parallel=True,cache=True)
 def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon, constants):
 
     absparticles = np.abs(particles)
@@ -223,7 +225,7 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
                     directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
                     #finding out whether the rest is the dominant state of the neighbors
-                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                    if ((directions_frequency[6] == directions_frequency.max()) and (np.sum(directions_frequency >= constants[6]) == 1)):
                         newdir = 6
                         if np.random.uniform() <= constants[0]:
                             newparticles[previousdir,x,y] = 0
@@ -256,7 +258,7 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
                     directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
                     #finding out whether the rest is the dominant state of the neighbors
-                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                    if ((directions_frequency[6] == directions_frequency.max()) and (np.sum(directions_frequency >= constants[6]) == 1)):
                         newdir = 6
                         if np.random.uniform() <= constants[0]:
                             newparticles[previousdir,x,y] = 0
@@ -290,7 +292,7 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
                     directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
                     #finding out whether the rest is the dominant state of the neighbors
-                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                    if ((directions_frequency[6] == directions_frequency.max()) and (np.sum(directions_frequency >= constants[6]) == 1)):
                         newdir = 6
                         if np.random.uniform() <= constants[0]:
                             newparticles[previousdir,x,y] = 0
@@ -324,7 +326,7 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
                     directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
                     #finding out whether the rest is the dominant state of the neighbors
-                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                    if ((directions_frequency[6] == directions_frequency.max()) and (np.sum(directions_frequency >= constants[6]) == 1)):
                         newdir = 6
                         if np.random.uniform() <= constants[0]:
                             newparticles[previousdir,x,y] = 0
@@ -358,7 +360,7 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
                     directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
                     #finding out whether the rest is the dominant state of the neighbors
-                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                    if ((directions_frequency[6] == directions_frequency.max()) and (np.sum(directions_frequency >= constants[6]) == 1)):
                         newdir = 6
                         if np.random.uniform() <= constants[0]:
                             newparticles[previousdir,x,y] = 0
@@ -392,7 +394,7 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
                     directions_frequency = neighbors_directions(previousdir, absparticles, x,y, w,h, weights)
 
                     #finding out whether the rest is the dominant state of the neighbors
-                    if (directions_frequency[6] == directions_frequency.max() and np.sum(directions_frequency >= constants[6]) == 1):
+                    if ((directions_frequency[6] == directions_frequency.max()) and (np.sum(directions_frequency >= constants[6]) == 1)):
                         newdir = 6
                         if np.random.uniform() <= constants[0]:
                             newparticles[previousdir,x,y] = 0
@@ -440,7 +442,7 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
     
     return (newparticles,photons)
 
-@njit(parallel = True)
+@njit(parallel = True,cache=True)
 def scattering_cpu(particles: np.ndarray, w,h, constants):
 
     absparticles = np.abs(particles)
@@ -477,7 +479,7 @@ def scattering_cpu(particles: np.ndarray, w,h, constants):
             
     return newparticles
 
-@njit(parallel = True)
+@njit(parallel = True,cache=True)
 def protonaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon, constants):
 
     newparticles = np.copy(particles)
@@ -488,7 +490,7 @@ def protonaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_pho
     for x in prange(w):
         for y in prange(h):
             for state in range(7):
-                if particles[state,x,y] == -1  and  partictot[x,y] == 1:
+                if particles[state,x,y] == -1 and partictot[x,y] == 1:
                     yplus1 = (y+1)%h
                     xplus1 = (x+1)%w
                     yplus2 = (y+2)%h
@@ -513,7 +515,7 @@ def protonaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_pho
             
     return (newparticles,photons)
 
-@njit(parallel = True)
+@njit(parallel = True,cache=True)
 def neutronaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon, constants):
 
     newparticles = np.copy(particles)
@@ -524,7 +526,7 @@ def neutronaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_ph
     for x in prange(w):
         for y in prange(h):
             for state in range(7):
-                if particles[state,x,y] == 1  and  partictot[x,y] == 1:
+                if particles[state,x,y] == 1 and partictot[x,y] == 1:
                     yplus1 = (y+1)%h
                     xplus1 = (x+1)%w
                     yplus2 = (y+2)%h
@@ -549,7 +551,7 @@ def neutronaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_ph
                             
     return (newparticles,photons)
 
-@njit(parallel=True)
+@njit(parallel=True,cache=True)
 def propagation_prot_neut_cpu(particles, w,h,dirdico):
     newparticles=np.copy(particles)
     for x in prange(w):
@@ -560,7 +562,7 @@ def propagation_prot_neut_cpu(particles, w,h,dirdico):
                 newparticles[dir,new_position[0],new_position[1]] = particles[dir,x,y]
     return newparticles
 
-@njit(parallel=True)
+@njit(parallel=True,cache=True)
 def propagation_photon_cpu(photons, w,h,dirdico):
     newphotons = np.copy(photons)
     for x in prange(w):
@@ -571,7 +573,7 @@ def propagation_photon_cpu(photons, w,h,dirdico):
                 newphotons[dir,new_position[0],new_position[1]] = photons[dir,x,y]
     return newphotons
 
-@njit(parallel=True)
+@njit(parallel=True,cache=True)
 def absorption_cpu(particles: np.ndarray, photons: np.ndarray, w,h, constants):
 
     newparticles = np.copy(particles)
@@ -637,7 +639,7 @@ def absorption_cpu(particles: np.ndarray, photons: np.ndarray, w,h, constants):
     
     return (newparticles,photons)
 
-@njit
+@njit(cache=True)
 def scattering_dynamics_2_particle(particles, nonzero_indices):
     newparticles = np.copy(particles)
 
@@ -729,7 +731,7 @@ def scattering_dynamics_2_particle(particles, nonzero_indices):
     
     return newparticles
 
-@njit
+@njit(cache=True)
 def scattering_dynamics_3_particle(particles, nonzero_indices):
     newparticles = np.copy(particles)
 
@@ -1592,7 +1594,7 @@ def scattering_probability(particles, w,h, x,y, dir, constants):
 
     return probability
 
-@njit
+@njit(cache=True)
 def photon_creation(previousdir, newdir):
     newphotons = np.zeros(6,dtype=np.int64)
     if (previousdir != newdir):
@@ -1625,7 +1627,7 @@ def photon_creation(previousdir, newdir):
     
     return newphotons
 
-@njit
+@njit(cache=True)
 def neighbors_directions(movingdir, absparticles, x,y, w,h, weights):
     yplus1 = (y+1)%h
     xplus1 = (x+1)%w
@@ -1652,8 +1654,7 @@ def neighbors_directions(movingdir, absparticles, x,y, w,h, weights):
     return result
 
 
-@njit(parallel=True)
-
+@njit(parallel=True,cache=True)
 def sink_cpu(particles,photons,w,h,constants):
     i_low = np.int64(w/2-constants[0]/2)
     i_high = np.int64(w/2+constants[0]/2)
