@@ -7,7 +7,7 @@ import cv2
 
 # Select configuration name to load
 # If 'None', it will use configuration currently defined in CreateConfig.py
-CONFIG_NAME = 'test_config'
+CONFIG_NAME = None
 
 if(CONFIG_NAME is None):
     make_config(temporary=True)
@@ -55,6 +55,7 @@ while running:
                 if(not launch_video):
                     launch_video=True
             if(event.key == pygame.K_q):
+                # Here in principle we should randomize the prameters and set them
                 auto.set_parameters(*(load_config(os.path.join(conf_fold,f'no_photon.json'))['constants']),init_particles=None)
         # Handle the event loop for the camera
         camera.handle_event(event)
