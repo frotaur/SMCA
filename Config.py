@@ -20,12 +20,17 @@ execution_order = [
     # 'count_particles',
     'propagation_prot_neut_step',
     'propagation_photon_step',
+    'propagation_photon_step',
+    'propagation_photon_step',
+    'propagation_photon_step',
+    'propagation_photon_step',
     'sticking_step',
     # 'scattering_step',
     #'protonaction_step',
     #'neutronaction_step',
     'absorption_step',
-    # 'sink_step'
+    'sink_step',
+    'source_step'
 ]
 
 Width = 300
@@ -72,6 +77,7 @@ constants_dict = {
     "Photon_absorption_probability": 0.5,
     
     "sink_size": 30,
+    "source_size": 5,
 }
 
 #Random array for particles
