@@ -168,6 +168,10 @@ class SMCA_Triangular(Automaton):
     def sink_step(self):
         constants = np.array([self.constants["sink_size"]])
         (self.particles,self.photons) = sink_cpu(self.particles,self.photons,self.w,self.h,constants)
+    
+    def source_step(self):
+        constants = np.array([self.constants["source_size"]])
+        (self.particles,self.photons) = source_cpu(self.particles,self.photons,self.w,self.h,constants)
         
 
     def count_particles(self):
@@ -1663,7 +1667,19 @@ def sink_cpu(particles,photons,w,h,constants):
     for i in prange(i_low,i_high):
         for j in prange(j_low,j_high):
             photons[:,i,j] = 0
-            particles[:,i,j] = 0
+            #particles[:,i,j] = 0
+    
+    return particles,photons
+            
+def source_cpu(particles,photons,w,h,constants):
+    i_low = np.int64(1)
+    i_high = np.int64(constants[0])
+    j_low = np.int64(1)
+    j_high = np.int64(constants[0])
+    for i in prange(i_low,i_high):
+        for j in prange(j_low,j_high):
+            photons[:,i,j] = 1
+            #particles[:,i,j] = 0
     
     return particles,photons
             
