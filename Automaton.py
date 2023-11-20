@@ -2,11 +2,9 @@ import numpy as np
 from numba import njit, prange,cuda 
 from CreateConfig import *
 import numba.typed as numt
-import cv2
 import csv
 import datetime
-import sys
-import concurrent.futures
+
 
 class Automaton :
     """
@@ -161,14 +159,6 @@ class SMCA_Triangular(Automaton):
         #creating a numpy array for constants to give them to absorption_cpu that is using Numba
         absoprtion_constants = np.array([self.constants["Photon_absorption_probability"]])
         (self.particles,self.photons) = absorption_cpu(self.particles,self.photons,self.w,self.h,absoprtion_constants)
-    
-    def sink_step(self):
-        constants = np.array([self.constants["sink_size"]])
-        (self.particles,self.photons) = sink_cpu(self.particles,self.photons,self.w,self.h,constants)
-    
-    def source_step(self):
-        constants = np.array([self.constants["source_size"]])
-        (self.particles,self.photons) = source_cpu(self.particles,self.photons,self.w,self.h,constants)
         
 
     def photon_annihilation_step(self):
@@ -1370,7 +1360,7 @@ def scattering_dynamics_3_particle(particles, nonzero_indices):
 
     return newparticles
 
-@njit
+@njit(cache=True)
 def scattering_probability(particles, w,h, x,y, dir, constants):
 
     xplus1 = (x+1)%w
@@ -1449,30 +1439,6 @@ def neighbors_directions(absparticles, x,y, w,h):
     return result
 
 
-@njit(parallel=True,cache=True)
-def sink_cpu(particles,photons,w,h,constants):
-    i_low = np.int64(w/2-constants[0]/2)
-    i_high = np.int64(w/2+constants[0]/2)
-    j_low = np.int64(h/2-constants[0]/2)
-    j_high = np.int64(h/2+constants[0]/2)
-    for i in prange(i_low,i_high):
-        for j in prange(j_low,j_high):
-            photons[:,i,j] = 0
-            #particles[:,i,j] = 0
-    
-    return particles,photons
-@njit(cache=True)           
-def source_cpu(particles,photons,w,h,constants):
-    i_low = np.int64(1)
-    i_high = np.int64(constants[0])
-    j_low = np.int64(1)
-    j_high = np.int64(constants[0])
-    for i in prange(i_low,i_high):
-        for j in prange(j_low,j_high):
-            photons[:,i,j] = 1
-            #particles[:,i,j] = 0
-    
-    return particles,photons
             
 @njit(parallel = True, cache = True)
 def photon_annihilation_cpu(photons, w,h):

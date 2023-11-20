@@ -15,7 +15,7 @@ def make_config(temporary=False):
 
     # * If you want any of interactions create photon, set their boolean True
     photon_interactions = {
-    "sticking_photon" : True,
+    "sticking_photon" : False,
     "protonaction_photon" : False,
     "neutronaction_photon" : False,
     }
@@ -38,8 +38,8 @@ def make_config(temporary=False):
         #'protonaction_step',
         #'neutronaction_step',
         'photon_annihilation_step',
-        'absorption_step',
-        # 'sink_step'
+        #'absorption_step',
+
     ]
 
 
@@ -70,7 +70,6 @@ def make_config(temporary=False):
 
         "Photon_absorption_probability": 0.5,
         
-        "sink_size": 30,
     }
 
     initialization_dict = {
