@@ -17,14 +17,15 @@ photon_creation_map = {
 # Specify the order in which functions should be executed. If you do not want a function to operate, you should not put its name in this list.
 #! It is sensitive to capital or small letter
 execution_order = [
-    # 'count_particles',
+    'count_particles',
     'propagation_prot_neut_step',
     'propagation_photon_step',
     'sticking_step',
-    # 'scattering_step',
+    'photon_annihilation_step',
+    #'scattering_step',
     #'protonaction_step',
     #'neutronaction_step',
-    'absorption_step'
+    #'absorption_step'
 ]
 
 Width = 300
