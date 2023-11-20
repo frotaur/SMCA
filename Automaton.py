@@ -128,7 +128,7 @@ class SMCA_Triangular(Automaton):
         """
         #creating a numpy array for constants to give them to sticking_cpu that is using Numba
         sticking_constants = np.array([self.constants["Probability_of_sticking"]])
-        (self.particles,self.photons) = sticking_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_config[self.photon_creation_map.get('Sticking_photon')],sticking_constants)
+        (self.particles,self.photons) = sticking_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_bools[self.photon_create_order.get('sticking_photon')],sticking_constants)
     
     def scattering_step(self):
         """
@@ -174,7 +174,7 @@ class SMCA_Triangular(Automaton):
     def photon_annihilation_step(self):
         
         """
-        Deletes the opposing photons in each direction
+        Annihilates the opposing photons in each direction
         """
         self.photons = photon_annihilation_cpu(self.photons, self.w, self.h)
 
