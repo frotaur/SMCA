@@ -4,6 +4,7 @@ from Automaton import *
 from LoadConfig import load_config
 from CreateConfig import make_config
 import cv2
+import os
 
 # Select configuration name to load
 # If 'None', it will use configuration currently defined in CreateConfig.py
