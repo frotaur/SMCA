@@ -170,7 +170,7 @@ class SMCA_Triangular(Automaton):
         (self.particles,self.photons) = sink_cpu(self.particles,self.photons,self.w,self.h,constants)
     
     def source_step(self):
-        constants = np.array([self.constants["source_size"]])
+        constants = np.array([self.constants["source_size"], self.constants["source_prob"]])
         (self.particles,self.photons) = source_cpu(self.particles,self.photons,self.w,self.h,constants)
         
 
@@ -1660,8 +1660,8 @@ def neighbors_directions(movingdir, absparticles, x,y, w,h, weights):
 
 @njit(parallel=True,cache=True)
 def sink_cpu(particles,photons,w,h,constants):
-    i_low = np.int64(w/2-constants[0]/2)
-    i_high = np.int64(w/2+constants[0]/2)
+    i_low = np.int64(1)
+    i_high = np.int64(w)
     j_low = np.int64(h/2-constants[0]/2)
     j_high = np.int64(h/2+constants[0]/2)
     for i in prange(i_low,i_high):
@@ -1670,15 +1670,18 @@ def sink_cpu(particles,photons,w,h,constants):
             #particles[:,i,j] = 0
     
     return particles,photons
-            
+
+# @njit(parallel=True,cache=True)            
 def source_cpu(particles,photons,w,h,constants):
+    print(constants)
     i_low = np.int64(1)
-    i_high = np.int64(constants[0])
+    i_high = np.int64(w)
     j_low = np.int64(1)
-    j_high = np.int64(constants[0])
+    j_high = np.int64(2)
     for i in prange(i_low,i_high):
         for j in prange(j_low,j_high):
-            photons[:,i,j] = 1
+            if(np.random.uniform() < constants[1]):
+                photons[:,i,j] = 1
             #particles[:,i,j] = 0
     
     return particles,photons

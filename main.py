@@ -20,6 +20,7 @@ conf_fold = os.path.join(Path(__file__).parent.as_posix(),'configurations')
 configo = load_config(os.path.join(conf_fold,f'{CONFIG_NAME}.json'))
 ((Width,Height),FPS) = configo['fixed'] # Fixed parameters
 (photon_creation_map,execution_order ,constants_dict) = configo['constants'] # Automaton parameters
+print(constants_dict)
 (init_particles,) = configo['init'] # Initialization
 
 # Initialize the pygame screen 

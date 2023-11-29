@@ -33,12 +33,14 @@ def make_config(temporary=False):
         #'count_particles',
         'propagation_prot_neut_step',
         'propagation_photon_step',
+        'propagation_photon_step',
         'sticking_step',
-        #'scattering_step',
+        'scattering_step',
         #'protonaction_step',
         #'neutronaction_step',
         'absorption_step',
-        # 'sink_step'
+        'sink_step',
+        'source_step'
     ]
 
 
@@ -82,6 +84,8 @@ def make_config(temporary=False):
         "Photon_absorption_probability": 0.5,
         
         "sink_size": 30,
+        "source_size": 300,
+        "source_prob": 0.02
     }
 
     initialization_dict = {

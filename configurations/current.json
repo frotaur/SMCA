@@ -34,13 +34,19 @@
         "Prot_Neut_threshold": 6,
         "Prot_Neut_slope": 0.3,
         "Photon_absorption_probability": 0.5,
-        "sink_size": 30
+        "sink_size": 30,
+        "source_size": 300,
+        "source_prob": 0.02
     },
     "EXEC_ORDER": [
         "propagation_prot_neut_step",
         "propagation_photon_step",
+        "propagation_photon_step",
         "sticking_step",
-        "absorption_step"
+        "scattering_step",
+        "absorption_step",
+        "sink_step",
+        "source_step"
     ],
     "INITIALIZATION": {
         "use": true,
