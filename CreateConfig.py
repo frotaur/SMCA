@@ -15,7 +15,7 @@ def make_config(temporary=False):
 
     # * If you want any of interactions create photon, set their boolean True
     photon_interactions = {
-    "sticking_photon" : True,
+    "sticking_photon" : False,
     "protonaction_photon" : False,
     "neutronaction_photon" : False,
     }
@@ -37,8 +37,9 @@ def make_config(temporary=False):
         #'scattering_step',
         #'protonaction_step',
         #'neutronaction_step',
-        'absorption_step',
-        # 'sink_step'
+        'photon_annihilation_step',
+        #'absorption_step',
+
     ]
 
 
@@ -47,18 +48,6 @@ def make_config(temporary=False):
         "particle_counting_steps": 1, # After each n steps the code gives you a statistics of number of particles
 
         "Probability_of_sticking": 1,
-
-        #Defining weights for sticking; w1: the particle which incoming particle is facing, w2: two neighbors of w1, w3: two neighbors of w2s, w4: only neighbor of w3s
-        "Sticking_w1_input": 2,
-        "Sticking_w2_input": 1,
-        "Sticking_w3_input": 0,
-        "Sticking_w4_input": 0,
-
-        #Thresholds for deciding whether sticking happens or not; if the frequency of only one direction is more than threshold, then sticking happens.
-        #These numbers should always be considered as a number out of 6 (since we normalized our weights)
-        "Sticking_move_to_move_threshold": 4,
-        "Sticking_move_to_rest_threshold": 4,
-        "Sticking_rest_to_move_threshold": 4,
 
         #weight1 and weight2 are the weight of first and second neighbours respectively in scattering
         "Scattering_weight1": 1,
@@ -81,7 +70,6 @@ def make_config(temporary=False):
 
         "Photon_absorption_probability": 0.5,
         
-        "sink_size": 30,
     }
 
     initialization_dict = {

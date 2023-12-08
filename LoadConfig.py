@@ -19,7 +19,7 @@ def normal_random_particles(threshold,W,H):
     tmp3 = tmp1 * tmp2
     particles = np.where(tmp3,0,particles)
     particles = np.where(particles > threshold,-1,particles)
-    particles = np.where(particles < -threshold,1,particles)
+    particles = np.where(particles < -threshold,-1,particles)
     particles = particles.astype(np.int16)
 
     return particles
