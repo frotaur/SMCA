@@ -1,6 +1,6 @@
 {
     "SIZE": {
-        "W": 300,
+        "W": 350,
         "H": 300
     },
     "FPS": 60,
@@ -30,12 +30,11 @@
     },
     "EXEC_ORDER": [
         "propagation_prot_neut_step",
-        "propagation_photon_step",
-        "sticking_step",
-        "photon_annihilation_step"
+        "scattering_step"
     ],
     "INITIALIZATION": {
         "use": true,
-        "rand_particle_threshold": 2.5
+        "proton_percent": 0.1,
+        "neutron_percent": 0.1
     }
 }

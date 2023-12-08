@@ -4,46 +4,20 @@ import numpy as np
 import random
 
 
-def normal_random_particles(threshold,W,H):
+def custom_particles(W,H):
     """
-        Generates evenly distributed random particles with a threshold
-        << UP NEXT, ADD MORE PARAMETERS, like percent of particles of each type >>
-    """
-    rand_array = np.random.randn(7,W,H)
-    particles= np.zeros((7,W,H))
-    particles[:,1::2, ::2] = rand_array[:,1::2, ::2]
-    particles[:,::2, 1::2] = rand_array[:,::2, 1::2]
+        Custom function for initialization state. It should return a particles tensor of integers,
+        of size (7,W,H) where 7 is the number of directions. -1 for proton, 1 for neutron, 0 for nothing. TODO : CHECK THIS.`
+        There are additional restriction, due to the data representation. Only (x,y) locations which will be considered will be
+        x odd, y even, and x even, y odd. This is due to the hexagonal grid representation. You can just fill it liberally, but 
+        these locations will be set to zero anyway.
 
-    tmp1 = particles <= threshold
-    tmp2 = particles >= -threshold
-    tmp3 = tmp1 * tmp2
-    particles = np.where(tmp3,0,particles)
-    particles = np.where(particles > threshold,-1,particles)
-    particles = np.where(particles < -threshold,-1,particles)
-    particles = particles.astype(np.int16)
+        Returns : (7,W,H) initialization of protons and neutrons.
+    """
+    # PLACEHOLDER IMPLEMENTATION :
+    particles = np.randint(-1,2,(7,W,H))
 
     return particles
-
-def create_center_square(W, H, block_size):
-    """
-    Creates a grid with a square block of '-1' particles in the center on a hexagonal grid.
-    """
-    particles = np.zeros((7, W, H), dtype=np.float)
-
-    # Calculate the starting and ending indices for the square block
-    start_x = W // 2 - block_size // 2
-    end_x = start_x + block_size
-    start_y = H // 2 - block_size // 2
-    end_y = start_y + block_size
-
-    # Set the values in the block to -1, accounting for hexagonal grid offset
-    for x in range(start_x, end_x):
-        for y in range(start_y, end_y):
-            if (x + y) % 2 == 0:  # Adjust for hexagonal grid offset
-                particles[:, x, y] = -1
-
-    return particles
-
 
 def load_config(path):
     """
@@ -70,15 +44,69 @@ def load_config(path):
         fps = config['FPS']
 
         if(config['INITIALIZATION']['use']):
-            partic_thresh = config['INITIALIZATION']['rand_particle_threshold']
-            init_particles = create_center_square(partic_thresh,width,height)
+            proton_percent = config['INITIALIZATION']['proton_percent']
+            neutron_percent = config['INITIALIZATION']['neutron_percent']
+            init_particles = sanitize_init_particles(percent_random_particles(proton_percent,neutron_percent,width,height).astype(np.int16))
         else:
-            init_particles=None
+            init_particles= sanitize_init_particles(custom_particles(width,height).astype(np.int16))
     
     return {'fixed':((width,height),fps),
             'constants' : (photon_creation_map,execution_order,constants_dict),
-             'init' : (init_particles,)
-     }
+             'init' : (init_particles,)}
+
+def sanitize_init_particles(init_particles):
+    """
+        Given an init particles tensor, removes the particles which are not on the hexagonal grid.
+    """
+    new_partic = init_particles.copy()
+    new_partic[:,::2,::2] = 0
+    new_partic[:,1::2,1::2] = 0
+
+    return new_partic
+
+
+def percent_random_particles(proton_percent,neutron_percent,W,H):
+    """
+        Generates evenly distributed random particles, with a given percentage of protons and neutrons.
+        Percentages are relative to the total number of sites. So there can be up to 700% of particles,
+        since there are 7 directions (7 particles per site). Directions are distributed randomly.
+    """
+    assert proton_percent/7. + neutron_percent/7. <= 1, "Total percentage of proton and neutron times 7 must be less than 1!"
+    print(f'try with {proton_percent,neutron_percent,W,H}')
+    rand_array = np.random.rand(7,W,H)
+
+    protons = rand_array <= proton_percent/7.
+    neutrons = (proton_percent/7. <= rand_array) & (rand_array <= proton_percent/7. + neutron_percent/7.)
+
+    particles = np.zeros((7,W,H),dtype=np.int16)
+    particles = np.where(protons,-1,particles)
+    particles = np.where(neutrons,1,particles)
+
+    particles = particles.astype(np.int16)
+
+    return particles
+
+
+def create_center_square(W, H, block_size):
+    """
+    Creates a grid with a square block of '-1' particles in the center on a hexagonal grid.
+    """
+    particles = np.zeros((7, W, H), dtype=np.int)
+
+    # Calculate the starting and ending indices for the square block
+    start_x = W // 2 - block_size // 2
+    end_x = start_x + block_size
+    start_y = H // 2 - block_size // 2
+    end_y = start_y + block_size
+
+    # Set the values in the block to -1, accounting for hexagonal grid offset
+    for x in range(start_x, end_x):
+        for y in range(start_y, end_y):
+            if (x + y) % 2 == 0:  # Adjust for hexagonal grid offset
+                particles[:, x, y] = -1
+
+    return particles
+
 
 def rando_config(width,height,fps,temporary=False):
     """
@@ -189,4 +217,3 @@ def rando_config(width,height,fps,temporary=False):
         'INITIALIZATION' : initialization_dict
         }
         json.dump(full_config,f,indent=4)
-

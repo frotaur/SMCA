@@ -1,7 +1,7 @@
 {
     "SIZE": {
-        "W": 300,
-        "H": 300
+        "W": 100,
+        "H": 100
     },
     "FPS": 60,
     "PHOTON_INTERACTIONS": {
@@ -17,13 +17,6 @@
     "CONSTANTS": {
         "particle_counting_steps": 1,
         "Probability_of_sticking": 1,
-        "Sticking_w1_input": 1,
-        "Sticking_w2_input": 1,
-        "Sticking_w3_input": 0,
-        "Sticking_w4_input": 0,
-        "Sticking_move_to_move_threshold": 4,
-        "Sticking_move_to_rest_threshold": 4,
-        "Sticking_rest_to_move_threshold": 4,
         "Scattering_weight1": 1,
         "Scattering_weight2": 1,
         "Probability of scattering": 0.5,
@@ -33,17 +26,15 @@
         "Prot_Neut_weight2": 0.5,
         "Prot_Neut_threshold": 6,
         "Prot_Neut_slope": 0.3,
-        "Photon_absorption_probability": 0.5,
-        "sink_size": 30
+        "Photon_absorption_probability": 0.5
     },
     "EXEC_ORDER": [
         "propagation_prot_neut_step",
-        "propagation_photon_step",
-        "sticking_step",
-        "absorption_step"
+        "scattering_step"
     ],
     "INITIALIZATION": {
         "use": true,
-        "rand_particle_threshold": 2.5
+        "proton_percent": 0.1,
+        "neutron_percent": 0.1
     }
 }

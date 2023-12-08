@@ -9,7 +9,7 @@ def make_config(temporary=False):
     """
     CONFIG_NAME = 'no_photon'
 
-    WIDTH = 300
+    WIDTH = 350
     HEIGHT = 300
     FPS = 60
 
@@ -32,12 +32,12 @@ def make_config(temporary=False):
     execution_order = [
         #'count_particles',
         'propagation_prot_neut_step',
-        'propagation_photon_step',
-        'sticking_step',
-        #'scattering_step',
+        # 'propagation_photon_step',
+        # 'sticking_step',
+        'scattering_step',
         #'protonaction_step',
         #'neutronaction_step',
-        'photon_annihilation_step',
+        # 'photon_annihilation_step',
         #'absorption_step',
 
     ]
@@ -73,8 +73,11 @@ def make_config(temporary=False):
     }
 
     initialization_dict = {
-        'use': True,
-        'rand_particle_threshold': 2.5
+        # If this 'use' is true, will use the pre-defined random initialization, with the percentages
+        # If it is false, it will use 'custom_initialization' to initialize. You can define it in LoadConfig.py
+        'use': True, 
+        'proton_percent': 0.1,
+        'neutron_percent': 0.1
     }
 
 
