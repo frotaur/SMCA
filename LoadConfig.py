@@ -24,6 +24,25 @@ def normal_random_particles(threshold,W,H):
 
     return particles
 
+def create_center_square(W, H, block_size):
+    """
+    Creates a grid with a square block of '-1' particles in the center on a hexagonal grid.
+    """
+    particles = np.zeros((7, W, H), dtype=np.float)
+
+    # Calculate the starting and ending indices for the square block
+    start_x = W // 2 - block_size // 2
+    end_x = start_x + block_size
+    start_y = H // 2 - block_size // 2
+    end_y = start_y + block_size
+
+    # Set the values in the block to -1, accounting for hexagonal grid offset
+    for x in range(start_x, end_x):
+        for y in range(start_y, end_y):
+            if (x + y) % 2 == 0:  # Adjust for hexagonal grid offset
+                particles[:, x, y] = -1
+
+    return particles
 
 
 def load_config(path):
@@ -52,7 +71,7 @@ def load_config(path):
 
         if(config['INITIALIZATION']['use']):
             partic_thresh = config['INITIALIZATION']['rand_particle_threshold']
-            init_particles = normal_random_particles(partic_thresh,width,height)
+            init_particles = create_center_square(partic_thresh,width,height)
         else:
             init_particles=None
     
