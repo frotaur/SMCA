@@ -43,8 +43,9 @@ class SMCA_Triangular(Automaton):
         Standard Model Cellular Automaton for the triangular lattice. Inspired by LGCA.
 
         Parameters :
-                    First argument: (W,H) tuple for the size of cellur automaton ""Note: W,H must be even numbers.""
-                    Second argument: Boolean. It is by default True and If you put False it does not give you the statistics. 
+            size: (W,H) tuple for the size of cellur automaton ""Note: W,H must be even numbers.""
+            photon_creation_map : describe what it is
+            execution_order : describe wha
     """
 
     def __init__(self, size, photon_creation_map, execution_order, constants, Init_particles): # size = (W,H) "Note: W,H must be even numbers." Configuration is a list of booleans. Constants is a dictionary.
