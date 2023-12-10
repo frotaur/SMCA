@@ -43,30 +43,28 @@ class SMCA_Triangular(Automaton):
         Standard Model Cellular Automaton for the triangular lattice. Inspired by LGCA.
 
         Parameters :
-            size: (W,H) tuple for the size of cellur automaton ""Note: W,H must be even numbers.""
-            photon_creation_map : describe what it is
-            execution_order : describe wha
+                    First argument: (W,H) tuple for the size of cellur automaton ""Note: W,H must be even numbers.""
+                    Second argument: Boolean. It is by default True and If you put False it does not give you the statistics. 
     """
 
-    def __init__(self, size, photon_creation_map, execution_order, constants, Init_particles): # size = (W,H) "Note: W,H must be even numbers." Configuration is a list of booleans. Constants is a dictionary.
+    def __init__(self, size, photon_creations, execution_order, constants, Init_particles): # size = (W,H) "Note: W,H must be even numbers." Configuration is a list of booleans. Constants is a dictionary.
         super().__init__(size)
         self.steps_cnt = 0
         # 0,1,2,3,4,5 of the first dimension are the six directions, starting with East, and continuing clockwise
         
-        self.set_parameters(photon_creation_map, execution_order, constants, Init_particles)
+        self.set_parameters(photon_creations, execution_order, constants, Init_particles)
         #creating an array for photons
         self.photons = np.zeros((6,self.w,self.h),dtype=int) #dimensions of this array are the same with particles and the values of it are the number of photons in that location and direction
         
         self.dir = np.array([[2,0],[1,1],[-1,1],[-2,0],[-1,-1],[1,-1]])  # Contains arrays of the six directions, starting with East, and continuing clockwise
     
     
-    def set_parameters(self, photon_creation_map, execution_order, constants, init_particles):
+    def set_parameters(self, photon_creations, execution_order, constants, init_particles):
         #create a lattice in which there are some neutrons and protons. 0: nothing, -1: proton, 1: neutron
         if(init_particles is not None):
             self.particles=init_particles
 
-        self.photon_create_order = photon_creation_map['order']
-        self.photon_creation_bools = photon_creation_map['bools']
+        self.photon_creations = photon_creations
         self.execution_order = execution_order
         self.constants = constants
         
@@ -100,10 +98,11 @@ class SMCA_Triangular(Automaton):
         self._worldmap = np.zeros_like(self._worldmap) #(W,H,3)
         self.neutron = np.where(self.particles == 1, 1, 0)
         self.proton = np.where(self.particles == -1, 1, 0)
-        self.green = np.where (self.photons > 0, 1, 0)
-        self._worldmap[:,:,1] = (self.green.sum(axis =0)/1.)[:,:]
         self._worldmap[:,:,2]=(self.neutron.sum(axis = 0)/1.)[:,:]
         self._worldmap[:,:,0]=(self.proton.sum(axis = 0)/1.)[:,:]
+        if self.constants["photon_visualization"]:
+            self.green = np.where (self.photons > 0, 1, 0)
+            self._worldmap[:,:,1] = (self.green.sum(axis =0)/1.)[:,:]
 
         self.steps_cnt += 1
 
@@ -114,12 +113,18 @@ class SMCA_Triangular(Automaton):
         """
         self.particles = propagation_prot_neut_cpu(self.particles,self.w,self.h,self.dir)
 
-
     def propagation_photon_step(self):
         """
             Does the propagation step of the photons in the automaton
         """
         self.photons = propagation_photon_cpu(self.photons,self.w,self.h,self.dir)
+
+    def propagation_anti_photon_step(self):
+        """
+            Does the propagation step of the photons in the automaton in reverse
+            (momentum remains the same but the movement direction is the opposite)
+        """
+        self.photons = propagation_anti_photon_cpu(self.photons,self.w,self.h,self.dir)
 
     def sticking_step(self):
         """
@@ -127,7 +132,7 @@ class SMCA_Triangular(Automaton):
         """
         #creating a numpy array for constants to give them to sticking_cpu that is using Numba
         sticking_constants = np.array([self.constants["Probability_of_sticking"]])
-        (self.particles,self.photons) = sticking_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_bools[self.photon_create_order.get('sticking_photon')],sticking_constants)
+        (self.particles,self.photons) = sticking_cpu(self.particles,self.photons,self.w,self.h,self.photon_creations['sticking_photon'],self.constants['sticking_prefers_moving_direction'], sticking_constants)
     
     def scattering_step(self):
         """
@@ -143,7 +148,7 @@ class SMCA_Triangular(Automaton):
         """
         #creating a numpy array for constants to give them to protonaction_cpu that is using Numba
         protonaction_constants = np.array([self.constants["Prot_Neut_weight1"] , self.constants["Prot_Neut_weight2"] , self.constants["Prot_Neut_threshold"] , self.constants["Prot_Neut_slope"] ])
-        (self.particles,self.photons) = protonaction_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_bools[self.photon_create_order.get('protonaction_photon')],protonaction_constants)
+        (self.particles,self.photons) = protonaction_cpu(self.particles,self.photons,self.w,self.h,self.photon_creations['protonaction_photon'],protonaction_constants)
         
     def neutronaction_step(self):
         """
@@ -151,21 +156,23 @@ class SMCA_Triangular(Automaton):
         """
         #creating a numpy array for constants to give them to neutronaction_cpu that is using Numba
         neutronaction_constants = np.array([self.constants["Prot_Neut_weight1"] , self.constants["Prot_Neut_weight2"] , self.constants["Prot_Neut_threshold"] , self.constants["Prot_Neut_slope"] ])
-        (self.particles,self.photons) = neutronaction_cpu(self.particles,self.photons,self.w,self.h,self.photon_creation_bools[self.photon_create_order.get('neutronaction_photon')],neutronaction_constants)
+        (self.particles,self.photons) = neutronaction_cpu(self.particles,self.photons,self.w,self.h,self.photon_creations['neutronaction_photon'],neutronaction_constants)
 
     def absorption_step(self):
         """
         Does the absorption of photons
         """
         #creating a numpy array for constants to give them to absorption_cpu that is using Numba
-        absoprtion_constants = np.array([self.constants["Photon_absorption_probability"]])
+        absoprtion_constants = np.array([self.constants["Photon_absorption_probability_0"], self.constants["Photon_absorption_probability_1"], \
+                                        self.constants["Photon_absorption_probability_2"], self.constants["Photon_absorption_probability_3"], \
+                                        self.constants["Photon_absorption_probability_4"], self.constants["Photon_absorption_probability_5"], \
+                                        self.constants["Photon_absorption_probability_6"]])
         (self.particles,self.photons) = absorption_cpu(self.particles,self.photons,self.w,self.h,absoprtion_constants)
         
-
     def photon_annihilation_step(self):
         
         """
-        Annihilates the opposing photons in each direction
+            Annihilates the opposing photons in each direction
         """
         self.photons = photon_annihilation_cpu(self.photons, self.w, self.h)
 
@@ -193,16 +200,32 @@ class SMCA_Triangular(Automaton):
         with open(self.filename_particles_direction, 'a', encoding='UTF8', newline='') as f:
             csv.writer(f).writerow(data)
 
+    def sink_step(self):
+        """
+            Annihilates the photons in an area called sink
+        """
+        tmp =[0.0,0.04,0.08,0.04]
+        self.photons = sink_cpu(self.photons, self.w, self.h,tmp)
+
+    def source_step(self):
+        """
+            Creates photons in an area or line or point called source
+        """
+        self.photons = source_cpu(self.photons, self.w, self.h)
+    def arbitrary_step(self):
+        """
+            This method is supposed to be used for testing and temporary purposes
+        """
+        (self.particles,self.photons) = arbitrary_cpu(self.particles,self.photons, self.w, self.h)
+
+
 @njit(parallel=True,cache=True)
-def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon, constants):
+def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon, preference, constants):
 
     absparticles = np.abs(particles)
     newparticles = np.copy(particles)
     total_particles = absparticles.sum(axis=0) #(W,H)
 
-    # Particle sticking
-
-    
     for x in prange(w):
         for y in prange(h):
             
@@ -221,12 +244,15 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
 
                         for previousdir in range(7):
                             if (absparticles[previousdir,x,y] == 1):
-
-                                if previousdir in dominant_directions:
-                                    newdir = previousdir
+                                
+                                if preference:
+                                    if previousdir in dominant_directions:
+                                        newdir = previousdir
+                                    else:
+                                        newdir = np.random.choice(dominant_directions)
                                 else:
                                     newdir = np.random.choice(dominant_directions)
-                                
+
                                 newparticles[previousdir,x,y] = 0
                                 newparticles[newdir,x,y] = particles[previousdir,x,y]
                                 #creating photon(s) to conserve momentum
@@ -370,9 +396,22 @@ def propagation_photon_cpu(photons, w,h,dirdico):
     return newphotons
 
 @njit(parallel=True,cache=True)
+def propagation_anti_photon_cpu(photons, w,h,dirdico):
+    newphotons = np.copy(photons)
+    for x in prange(w):
+        for y in prange(h):
+            loc = np.array([x,y])
+            for dir in range(6):
+                new_position = (loc-dirdico[dir])%np.array([w,h])
+                newphotons[dir,new_position[0],new_position[1]] = photons[dir,x,y]
+    return newphotons
+
+@njit(parallel=True,cache=True)
 def absorption_cpu(particles: np.ndarray, photons: np.ndarray, w,h, constants):
 
     newparticles = np.copy(particles)
+    absparticles = np.abs(particles)
+
     for x in prange(w):
         for y in prange(h):
             
@@ -389,7 +428,12 @@ def absorption_cpu(particles: np.ndarray, photons: np.ndarray, w,h, constants):
 
                     for particle_direction in particles_directions_shuffle:
 
-                        if(np.random.uniform() < constants[0]):
+                        same_direction_moving_neighbors_number = neighbors_directions(absparticles, x,y, w,h)[particle_direction]
+
+                        probability = constants[int(same_direction_moving_neighbors_number)]
+
+                        if(np.random.uniform() < probability):
+
                             #absorption commands
                             if(particle_direction == 6):
                                 if(newparticles[photon_direction,x,y] == 0):
@@ -1425,6 +1469,8 @@ def photon_creation(previousdir, newdir):
 
 @njit(cache=True)
 def neighbors_directions(absparticles, x,y, w,h):
+
+    #This function gives a numpy array of size 7 in which number of neighbors moving in each direction is stored. (Starting from East to Rest)
     yplus1 = (y+1)%h
     xplus1 = (x+1)%w
     xplus2 = (x+2)%w
@@ -1438,9 +1484,7 @@ def neighbors_directions(absparticles, x,y, w,h):
     result += absparticles[:, xplus1, y - 1]
         
     return result
-
-
-            
+           
 @njit(parallel = True, cache = True)
 def photon_annihilation_cpu(photons, w,h):
 
@@ -1473,3 +1517,49 @@ def photon_annihilation_cpu(photons, w,h):
                 photons[5,x,y] = - Net_photons_SW
 
     return photons
+
+#! When you are creating a new sink or source don't forget that the our lattice is squared and by ignoring some of its nodes we make it hexagonal.
+@njit(parallel = True, cache = True)
+def sink_cpu(photons, w,h,sink_value):
+    
+    for i in prange(6):
+        for x in prange (int(4/5*w),int(5/5*w)):
+            for y in prange (h):
+                if np.random.uniform() < sink_value[0]:
+                    photons[i,x,y] = 0
+    
+    for i in prange(6):
+        for x in prange (int(3/5*w),int(4/5*w)):
+            for y in prange (h):
+                if np.random.uniform() < sink_value[1]:
+                    photons[i,x,y] = 0
+                    
+    for i in prange(6):
+        for x in prange (int(2/5*w),int(3/5*w)):
+            for y in prange(h):
+                if np.random.uniform() < sink_value[2]:
+                    photons[i,x,y] = 0
+    
+    for i in range(6):
+        for x in prange (int(1/5*w),int(2/5*w)):
+            for y in prange(h):
+                if np.random.uniform() < sink_value[3]:
+                    photons[i,x,y] = 0
+                    
+            
+                
+    
+
+    return photons
+
+@njit(parallel = True, cache = True)
+def source_cpu(photons, w,h):
+    photons[:,0,1::2] = 1
+    photons[:,1,0::2] = 1
+                
+        
+    return photons
+
+@njit(parallel = True, cache = True)
+def arbitrary_cpu(particles: np.ndarray, photons: np.ndarray,w,h):
+    return (particles, photons)

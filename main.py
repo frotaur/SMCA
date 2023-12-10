@@ -7,7 +7,8 @@ import cv2
 import os
 
 # Select configuration name to load
-# If 'None', it will use configuration currently defined in CreateConfig.py
+# If 'None', then it will create a new configuration JSON file based on the parameters in CreateConfig.py
+# If not 'None', then it will load the configuration JSON file with the name specified, so this file must exist in the configurations/ folder
 CONFIG_NAME = None
 
 if(CONFIG_NAME is None):
@@ -16,11 +17,11 @@ if(CONFIG_NAME is None):
 
 
 
-conf_fold = os.path.join(Path(__file__).parent.as_posix(),'configurations')
+config_folder = os.path.join(Path(__file__).parent.as_posix(),'configurations')
 
-configo = load_config(os.path.join(conf_fold,f'{CONFIG_NAME}.json'))
+configo = load_config(os.path.join(config_folder,f'{CONFIG_NAME}.json'))
 ((Width,Height),FPS) = configo['fixed'] # Fixed parameters
-(photon_creation_map,execution_order ,constants_dict) = configo['constants'] # Automaton parameters
+(photon_creations, execution_order ,constants_dict) = configo['constants'] # Automaton parameters
 (init_particles,) = configo['init'] # Initialization
 
 # Initialize the pygame screen 
@@ -38,7 +39,7 @@ updating = True
 recording = False
 launch_video = False
 
-auto = SMCA_Triangular((Width,Height), photon_creation_map, execution_order, constants_dict, init_particles)
+auto = SMCA_Triangular((Width,Height), photon_creations, execution_order, constants_dict, init_particles)
 
 while running:
     # poll for events
@@ -57,7 +58,7 @@ while running:
                     launch_video=True
             if(event.key == pygame.K_q):
                 # Here in principle we should randomize the prameters and set them
-                auto.set_parameters(*(load_config(os.path.join(conf_fold,f'no_photon.json'))['constants']),init_particles=None)
+                auto.set_parameters(*(load_config(os.path.join(config_folder,f'no_photon.json'))['constants']),init_particles=None)
         # Handle the event loop for the camera
         camera.handle_event(event)
     

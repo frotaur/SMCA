@@ -4,17 +4,14 @@
         "H": 300
     },
     "FPS": 60,
-    "PHOTON_INTERACTIONS": {
-        "sticking_photon": false,
+    "PHOTON_CREATIONS": {
+        "sticking_photon": true,
         "protonaction_photon": false,
         "neutronaction_photon": false
     },
-    "PHOTON_CREATE_ORDER": [
-        "sticking_photon",
-        "protonaction_photon",
-        "neutronaction_photon"
-    ],
     "CONSTANTS": {
+        "photon_visualization": false,
+        "sticking_prefers_moving_direction": true,
         "particle_counting_steps": 1,
         "Probability_of_sticking": 1,
         "Scattering_weight1": 1,
@@ -26,16 +23,78 @@
         "Prot_Neut_weight2": 0.5,
         "Prot_Neut_threshold": 6,
         "Prot_Neut_slope": 0.3,
-        "Photon_absorption_probability": 0.5
+        "Photon_absorption_probability_0": 1,
+        "Photon_absorption_probability_1": 0,
+        "Photon_absorption_probability_2": 0,
+        "Photon_absorption_probability_3": 1,
+        "Photon_absorption_probability_4": 1,
+        "Photon_absorption_probability_5": 1,
+        "Photon_absorption_probability_6": 1
     },
     "EXEC_ORDER": [
-        "propagation_prot_neut_step",
-        "propagation_photon_step",
         "sticking_step",
-        "photon_annihilation_step"
+        "propagation_prot_neut_step",
+        "propagation_anti_photon_step",
+        "sink_step",
+        "source_step",
+        "absorption_step"
     ],
     "INITIALIZATION": {
-        "use": true,
-        "rand_particle_threshold": 2.5
+        "use_random": true,
+        "rand_particle_threshold": 2.5,
+        "manual_initial_protons": [
+            [
+                0,
+                2,
+                3
+            ],
+            [
+                3,
+                3,
+                2
+            ],
+            [
+                3,
+                5,
+                2
+            ],
+            [
+                3,
+                5,
+                4
+            ],
+            [
+                3,
+                3,
+                4
+            ],
+            [
+                1,
+                3,
+                2
+            ],
+            [
+                2,
+                5,
+                2
+            ],
+            [
+                5,
+                5,
+                4
+            ],
+            [
+                6,
+                3,
+                4
+            ]
+        ],
+        "manual_initial_neutrons": [
+            [
+                0,
+                2,
+                5
+            ]
+        ]
     }
 }
