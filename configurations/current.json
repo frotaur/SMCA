@@ -10,7 +10,7 @@
         "neutronaction_photon": false
     },
     "CONSTANTS": {
-        "photon_visualization": false,
+        "photon_visualization": true,
         "sticking_prefers_moving_direction": true,
         "particle_counting_steps": 1,
         "Probability_of_sticking": 1,
@@ -34,7 +34,7 @@
     "EXEC_ORDER": [
         "sticking_step",
         "propagation_prot_neut_step",
-        "propagation_anti_photon_step",
+        "propagation_photon_step",
         "sink_step",
         "source_step",
         "absorption_step"

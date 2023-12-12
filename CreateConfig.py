@@ -27,8 +27,8 @@ def make_config(temporary=False):
         # 'count_particles',
         'sticking_step',
         'propagation_prot_neut_step',
-        # 'propagation_photon_step',
-        'propagation_anti_photon_step',
+        'propagation_photon_step',
+        # 'propagation_anti_photon_step',
         #'scattering_step',
         #'protonaction_step',
         #'neutronaction_step',
@@ -45,7 +45,7 @@ def make_config(temporary=False):
         ## REMOVE capitalization eventually
 
         # Set True if you want to see the photons, or False if you do not want to.
-        "photon_visualization": False,
+        "photon_visualization": True,
 
         # Set True if you want the sticking function to prefer the moving direction when there are many dominant directions, or False if you want no preference.
         "sticking_prefers_moving_direction": True,

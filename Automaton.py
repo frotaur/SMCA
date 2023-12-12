@@ -1519,7 +1519,9 @@ def photon_annihilation_cpu(photons, w,h):
     return photons
 
 #! When you are creating a new sink or source don't forget that the our lattice is squared and by ignoring some of its nodes we make it hexagonal.
-@njit(parallel = True, cache = True)
+
+#TODO: Numba says that this function can not be parallelized. Check it later.
+@njit(cache = True)
 def sink_cpu(photons, w,h,sink_value):
     
     for i in prange(6):
@@ -1552,7 +1554,8 @@ def sink_cpu(photons, w,h,sink_value):
 
     return photons
 
-@njit(parallel = True, cache = True)
+#TODO: Numba says that this function can not be parallelized. Check it later.
+@njit(cache = True)
 def source_cpu(photons, w,h):
     photons[:,0,1::2] = 1
     photons[:,1,0::2] = 1
