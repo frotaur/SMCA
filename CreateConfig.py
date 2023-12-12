@@ -15,12 +15,12 @@ def make_config(temporary=False):
 
     # * If you want any of interactions create photon, set their boolean True
     photon_interactions = {
-    "sticking_photon" : False,
+    "sticking_photon" : True,
     "protonaction_photon" : False,
     "neutronaction_photon" : False,
     }
 
-    # Order this in the order you want the functions to be executed
+    # ! This function was deleted in the other branch
     photon_create_order = [
             'sticking_photon',
             'protonaction_photon',
@@ -32,12 +32,12 @@ def make_config(temporary=False):
     execution_order = [
         #'count_particles',
         'propagation_prot_neut_step',
-        # 'propagation_photon_step',
-        # 'sticking_step',
+        'propagation_photon_step',
+        'sticking_step',
         'scattering_step',
         #'protonaction_step',
         #'neutronaction_step',
-        # 'photon_annihilation_step',
+        'photon_annihilation_step',
         #'absorption_step',
 
     ]

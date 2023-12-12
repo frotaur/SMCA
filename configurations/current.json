@@ -5,7 +5,7 @@
     },
     "FPS": 60,
     "PHOTON_INTERACTIONS": {
-        "sticking_photon": false,
+        "sticking_photon": true,
         "protonaction_photon": false,
         "neutronaction_photon": false
     },
@@ -30,7 +30,10 @@
     },
     "EXEC_ORDER": [
         "propagation_prot_neut_step",
-        "scattering_step"
+        "propagation_photon_step",
+        "sticking_step",
+        "scattering_step",
+        "photon_annihilation_step"
     ],
     "INITIALIZATION": {
         "use": true,

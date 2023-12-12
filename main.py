@@ -56,7 +56,7 @@ while running:
             if(event.key == pygame.K_q):
                 # Here in principle we should randomize the prameters and set them
                 # The following is just a placeholder
-                auto.set_parameters(*(load_config(os.path.join(conf_fold,f'no_photon.json'))['constants']),init_particles=None)
+                auto.set_parameters(*(load_config(os.path.join(conf_fold,f'random_last.json'))),init_particles=None)
         # Handle the event loop for the camera
         camera.handle_event(event)
     

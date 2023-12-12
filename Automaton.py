@@ -44,7 +44,7 @@ class SMCA_Triangular(Automaton):
 
         Parameters :
             size: (W,H) tuple for the size of cellur automaton ""Note: W,H must be even numbers.""
-            photon_creation_map : TODO DESCRIBE
+            photon_creation_map : TODO DESCRIBE # ! This part has been modified in the main branch. 
             execution_order : TODO DESCRIBE
             constants : Dicionary of constants used in the automaton
             init_particles : TODO DESCRIBE THE ARRAY DIMENSIONS
@@ -70,10 +70,12 @@ class SMCA_Triangular(Automaton):
 
             Args:
                 size: (W,H) tuple for the size of cellur automaton ""Note: W,H must be even numbers.""
-                photon_creation_map : TODO DESCRIBE
-                execution_order : TODO DESCRIBE
+                photon_creation_map : # ! This part has been modified in the main branch. 
+                execution_order : A list of strings containing the name of each step function in the order they should be executed.
                 constants : Dicionary of constants used in the automaton
-                init_particles : TODO DESCRIBE THE ARRAY DIMENSIONS. If None, leaves state unchanged.
+                init_particles : A list with the size of (7,W,H) whose component can be either -1 (for proton) , 0 (for nothing) or 1 (for neutron),
+                                7 directions are corresponding to 7 directions (0: East, 1: South-East, 2: South-West, 3: West, 4: North-West, 5: North-East, 6: Rest).
+                                If None, leaves state unchanged.
         """
         #create a lattice in which there are some neutrons and protons. 0: nothing, -1: proton, 1: neutron
         if(init_particles is not None):
@@ -245,8 +247,8 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
         Numba implementation for the sticking step.
 
         Args :
-        particles : (7,W,H) array of particles TODO : CHECK, not sure
-        photons : (6,W,H) array of photons TODO : CHECK, not sure
+        particles : (7,W,H) array of particles 
+        photons : (6,W,H) array of photons
         w,h : width and height of the lattice
         create_photon : boolean, whether to create photons or not
         constants : numpy array of constants TODO speciffy
@@ -293,7 +295,7 @@ def scattering_cpu(particles: np.ndarray, w,h, constants):
         Numba implementation for the scattering step.
 
         Args :
-        particles : (7,W,H) array of particles TODO : CHECK, not sure
+        particles : (7,W,H) array of particles 
         w,h : width and height of the lattice
         constants : numpy array of constants TODO speciffy
     """
@@ -332,8 +334,8 @@ def protonaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_pho
         Numba implementation for the proton action step (proton randomly scatter when too many)
 
         Args :
-        particles : (7,W,H) array of particles TODO : CHECK, not sure
-        photons : (6,W,H) array of photons TODO : CHECK, not sure
+        particles : (7,W,H) array of particles 
+        photons : (6,W,H) array of photons 
         w,h : width and height of the lattice
         create_photon : boolean, whether to create photons or not
         constants : numpy array of constants needed
@@ -1560,7 +1562,7 @@ def photon_annihilation_cpu(photons, w,h):
     """
     for x in prange(w):
         for y in prange(h):
-            # Can be written in one loop :
+            #! Can be written in one loop :
             # for dir in range(3):
             #     second_dir = dir+3
             #     net_photons = photons[dir,x,y] - photons[second_dir,x,y]
