@@ -43,16 +43,21 @@ class SMCA_Triangular(Automaton):
         Standard Model Cellular Automaton for the triangular lattice. Inspired by LGCA.
 
         Parameters :
-                    First argument: (W,H) tuple for the size of cellur automaton ""Note: W,H must be even numbers.""
-                    Second argument: Boolean. It is by default True and If you put False it does not give you the statistics. 
+            size: (W,H) tuple for the size of cellur automaton ""Note: W,H must be even numbers.""
+            photon_creation_map : TODO DESCRIBE
+            execution_order : TODO DESCRIBE
+            constants : Dicionary of constants used in the automaton
+            init_particles : TODO DESCRIBE THE ARRAY DIMENSIONS
+
+            COMMENT : init_particles was referred as 'Init_particles'. Avoid inconsistent capitalization.
     """
 
-    def __init__(self, size, photon_creations, execution_order, constants, Init_particles): # size = (W,H) "Note: W,H must be even numbers." Configuration is a list of booleans. Constants is a dictionary.
+    def __init__(self, size, photon_creations, execution_order, constants, init_particles): # size = (W,H) "Note: W,H must be even numbers." Configuration is a list of booleans. Constants is a dictionary.
         super().__init__(size)
         self.steps_cnt = 0
         # 0,1,2,3,4,5 of the first dimension are the six directions, starting with East, and continuing clockwise
         
-        self.set_parameters(photon_creations, execution_order, constants, Init_particles)
+        self.set_parameters(photon_creations, execution_order, constants, init_particles)
         #creating an array for photons
         self.photons = np.zeros((6,self.w,self.h),dtype=int) #dimensions of this array are the same with particles and the values of it are the number of photons in that location and direction
         
@@ -60,9 +65,20 @@ class SMCA_Triangular(Automaton):
     
     
     def set_parameters(self, photon_creations, execution_order, constants, init_particles):
+        """
+            Given the parameters, re-initializes the automaton.
+
+            Args:
+                size: (W,H) tuple for the size of cellur automaton ""Note: W,H must be even numbers.""
+                photon_creation_map : TODO DESCRIBE
+                execution_order : TODO DESCRIBE
+                constants : Dicionary of constants used in the automaton
+                init_particles : TODO DESCRIBE THE ARRAY DIMENSIONS. If None, leaves state unchanged.
+        """
         #create a lattice in which there are some neutrons and protons. 0: nothing, -1: proton, 1: neutron
         if(init_particles is not None):
             self.particles=init_particles
+            self.photons = np.zeros((6,self.w,self.h),dtype=int)
 
         self.photon_creations = photon_creations
         self.execution_order = execution_order
@@ -70,16 +86,18 @@ class SMCA_Triangular(Automaton):
         
         # This part creates a csv file for the number of particles:
         if 'count_particles' in self.execution_order:
-            self.particle_counting_nsteps = self.constants["particle_counting_steps"]   # After each n steps the code gives you a statistics of number of particles
-            self.relative_path = "./CSV/"   #The name of folder in which csv files willl be saved  #! You must have a folder with the same name in your project folder
+            # After each n steps statistics of number of particles are saved in CSV
+            self.particle_counting_nsteps = self.constants["particle_counting_steps"]   
+            self.relative_path = "./CSV/"   #The name of folder in which csv files willl be saved
+            os.makedirs(self.relative_path, exist_ok=True)
             self.filename_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             self.filename_particles_direction = self.relative_path + self.filename_timestamp + "_Particles_Direction.csv"
 
             # Defining the header row
-            header = ['Step', 'Protons_E', 'Protons_SE', 'Protons_SW', 'Protons_W', 'Protons_NW', 'Protons_NE', 'Protons_Rest', 'Neutrons_E', 'Neutrons_SE', 'Neutrons_SW', 'Neutrons_W', 'Neutrons_NW', 'Neutrons_NE', 'Neutrons_Rest', 'Photons_E', 'Photons_SE', 'Photons_SW', 'Photons_W', 'Photons_NW', 'Photons_NE'] 
-
-            with open(self.filename_particles_direction, 'w', newline='', encoding='utf-8') as f:
-                csv.writer(f).writerow(header)
+            header = [  'Step', 'Protons_E', 'Protons_SE', 'Protons_SW', 'Protons_W', 'Protons_NW',\
+                        'Protons_NE', 'Protons_Rest', 'Neutrons_E', 'Neutrons_SE', 'Neutrons_SW', 'Neutrons_W', \
+                        'Neutrons_NW', 'Neutrons_NE', 'Neutrons_Rest', 'Photons_E', 'Photons_SE', 'Photons_SW',\
+                        'Photons_W', 'Photons_NW', 'Photons_NE']
 
     def step(self):
         """
@@ -87,14 +105,26 @@ class SMCA_Triangular(Automaton):
             The order of execution of functions is defined in self.execution_order
         """
 
-        #TODO produce an error if function name is not defined in the class 
+        # Call functions in execution_order sequentially
         for function_name in self.execution_order:
-            function = getattr(self, function_name)
+            if(hasattr(self,function_name)):
+                function = getattr(self, function_name)
+            else :
+                raise Exception(f'Function {function_name} is not defined in the class !')
+            
             if function_name == 'count_particles' and self.steps_cnt % self.particle_counting_nsteps == 0:
                 function()
             else:
                 function()
         
+        # Here, we do NOT update the worldmap; that way, if we just want to simulate without seeing what happens, its ok.
+        # Numpy calls the 'draw' if it wants to.
+        self.steps_cnt += 1
+
+    def draw(self):
+        """
+            Draws the state of the map, setting self._worlmap to the correct values.
+        """
         self._worldmap = np.zeros_like(self._worldmap) #(W,H,3)
         self.neutron = np.where(self.particles == 1, 1, 0)
         self.proton = np.where(self.particles == -1, 1, 0)
@@ -103,8 +133,12 @@ class SMCA_Triangular(Automaton):
         if self.constants["photon_visualization"]:
             self.green = np.where (self.photons > 0, 1, 0)
             self._worldmap[:,:,1] = (self.green.sum(axis =0)/1.)[:,:]
-
-        self.steps_cnt += 1
+        
+    def get_constants_as_array(self,constants_list):
+        """
+            Given a list of strings, returns a numpy array of the constants value in order
+        """
+        return np.array([self.constants[const_name] for const_name in constants_list])
 
         
     def propagation_prot_neut_step(self):
@@ -135,27 +169,32 @@ class SMCA_Triangular(Automaton):
         (self.particles,self.photons) = sticking_cpu(self.particles,self.photons,self.w,self.h,self.photon_creations['sticking_photon'],self.constants['sticking_prefers_moving_direction'], sticking_constants)
     
     def scattering_step(self):
-        """
-        Does the scattering step of the automaton
-        """
-        #creating a numpy array for constants to give them to sticking_cpu that is using Numba
-        scattering_constants = np.array([self.constants["Scattering_weight1"], self.constants["Scattering_weight2"], self.constants["Probability of scattering"], self.constants["Scattering_threshold_one"], self.constants["Scattering_threshold_two"]])
+        needed_constants = ["Scattering_weight1", "Scattering_weight2", "Probability of scattering",\
+                             "Scattering_threshold_one", "Scattering_threshold_two"]
+        
+        # Numpy array for constants, needed to pass to scattering_cpu (using Numba)
+        # TODO : maybe it would be clearer if we broke up the constants by type (weights, thresholds, probability))
+
+        scattering_constants = self.get_constants_as_array(needed_constants)
         self.particles = scattering_cpu(self.particles,self.w,self.h,scattering_constants)
 
     def protonaction_step(self):
         """
         Does the proton excusive attribute 
         """
+        needed_constants = ["Prot_Neut_weight1", "Prot_Neut_weight2", "Prot_Neut_threshold", "Prot_Neut_slope"]
         #creating a numpy array for constants to give them to protonaction_cpu that is using Numba
-        protonaction_constants = np.array([self.constants["Prot_Neut_weight1"] , self.constants["Prot_Neut_weight2"] , self.constants["Prot_Neut_threshold"] , self.constants["Prot_Neut_slope"] ])
+        protonaction_constants = self.get_constants_as_array(needed_constants)
         (self.particles,self.photons) = protonaction_cpu(self.particles,self.photons,self.w,self.h,self.photon_creations['protonaction_photon'],protonaction_constants)
         
     def neutronaction_step(self):
         """
         Does the neutron exclusive attribute
         """
+        needed_constants = ["Prot_Neut_weight1", "Prot_Neut_weight2", "Prot_Neut_threshold", "Prot_Neut_slope"]
+
         #creating a numpy array for constants to give them to neutronaction_cpu that is using Numba
-        neutronaction_constants = np.array([self.constants["Prot_Neut_weight1"] , self.constants["Prot_Neut_weight2"] , self.constants["Prot_Neut_threshold"] , self.constants["Prot_Neut_slope"] ])
+        neutronaction_constants = self.get_constants_as_array(needed_constants)
         (self.particles,self.photons) = neutronaction_cpu(self.particles,self.photons,self.w,self.h,self.photon_creations['neutronaction_photon'],neutronaction_constants)
 
     def absorption_step(self):
@@ -178,7 +217,7 @@ class SMCA_Triangular(Automaton):
 
     def count_particles(self):
         """
-            Gives you the statistics of the directions of the particles.
+            Prints in console, and saves to csv the statistics of the directions of the particles.
         """
         sum_proton_direction = np.sum(self.particles == -1 , axis=(1,2))
         sum_neutron_direction = np.sum(self.particles == 1 , axis=(1,2))
@@ -221,13 +260,25 @@ class SMCA_Triangular(Automaton):
 
 @njit(parallel=True,cache=True)
 def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon, preference, constants):
+    """
+        Numba implementation for the sticking step.
+
+        Args :
+        particles : (7,W,H) array of particles TODO : CHECK, not sure
+        photons : (6,W,H) array of photons TODO : CHECK, not sure
+        w,h : width and height of the lattice
+        create_photon : boolean, whether to create photons or not
+        constants : numpy array of constants TODO speciffy
+
+        Returns : (updated_particles, updated_photons) same size as particles and photons
+    """
 
     absparticles = np.abs(particles)
     newparticles = np.copy(particles)
     total_particles = absparticles.sum(axis=0) #(W,H)
 
     for x in prange(w):
-        for y in prange(h):
+        for y in prange(h): # Nested prange does not work in Numba, but that's okay because it automatically adjusts
             
             if (total_particles[x,y] == 1):
                 
@@ -266,6 +317,14 @@ def sticking_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon,
 
 @njit(parallel = True,cache=True)
 def scattering_cpu(particles: np.ndarray, w,h, constants):
+    """
+        Numba implementation for the scattering step.
+
+        Args :
+        particles : (7,W,H) array of particles TODO : CHECK, not sure
+        w,h : width and height of the lattice
+        constants : numpy array of constants TODO speciffy
+    """
 
     absparticles = np.abs(particles)
     newparticles = np.copy(particles)
@@ -303,6 +362,16 @@ def scattering_cpu(particles: np.ndarray, w,h, constants):
 
 @njit(parallel = True,cache=True)
 def protonaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon, constants):
+    """
+        Numba implementation for the proton action step (proton randomly scatter when too many)
+
+        Args :
+        particles : (7,W,H) array of particles TODO : CHECK, not sure
+        photons : (6,W,H) array of photons TODO : CHECK, not sure
+        w,h : width and height of the lattice
+        create_photon : boolean, whether to create photons or not
+        constants : numpy array of constants needed
+    """
 
     newparticles = np.copy(particles)
     absparticles = np.abs(particles)
@@ -320,10 +389,13 @@ def protonaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_pho
                     xplus3 = (x+3)%w
                     xplus4 = (x+4)%w
                     # The number of protons in the first neighbour (6 neighbours) of this proton 
-                    p1 = protontot[xplus2,y] + protontot[xplus1,yplus1] + protontot[x-1,yplus1] + protontot[x-2,y] + protontot[x-1,y-1] + protontot[xplus1,y-1]
+                    p1 = protontot[xplus2,y] + protontot[xplus1,yplus1] + protontot[x-1,yplus1] + \
+                            protontot[x-2,y] + protontot[x-1,y-1] + protontot[xplus1,y-1]
                     # The number of protons in the second neighbour (12 neighbours) of this proton 
-                    p2 = protontot[xplus4,y] + protontot[xplus3,yplus1] + protontot[xplus2,yplus2] + protontot[x,yplus2] + protontot[x-2,yplus2] + protontot[x-3,yplus1] \
-                    + protontot[x-4,y] + protontot[x-3,y-1] + protontot[x-2,y-2] + protontot[x,y-2] + protontot[xplus2,y-2] + protontot[xplus3,y-1]
+                    p2 = protontot[xplus4,y] + protontot[xplus3,yplus1] + protontot[xplus2,yplus2] + \
+                        protontot[x,yplus2] + protontot[x-2,yplus2] + protontot[x-3,yplus1] \
+                    + protontot[x-4,y] + protontot[x-3,y-1] + protontot[x-2,y-2] + protontot[x,y-2] \
+                        + protontot[xplus2,y-2] + protontot[xplus3,y-1]
                     p_eff = constants[0] * p1 + constants[1] * p2
                     if np.random.uniform() < (p_eff - constants[2])* constants[3]:
                         previousdir = state
@@ -339,16 +411,28 @@ def protonaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_pho
 
 @njit(parallel = True,cache=True)
 def neutronaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_photon, constants):
+    """
+        TODO : this is the exact same function as protonaction !! Just rename it 'nucleonaction', and add a parameter
+        'nucleon_type' to choose between proton and neutron. 
+    """
 
     newparticles = np.copy(particles)
     absparticles = np.abs(particles)
     partictot = absparticles.sum(axis = 0) #(W,H)
-    neutron = particles == 1
+    neutron = particles == 1 # HERE nuclean type acts.
     neutrontot = neutron.sum(axis = 0)
+    
+    dr_close = [(2,0),(1,1),(-1,1),(-2,0),(-1,-1),(1,-1)]
+    dr_far = [(4,0),(3,1),(2,2),(0,2),(-2,2),(-3,1),(-4,0),(-3,-1),(-2,-2),(0,-2),(2,-2),(3,-1)]
+
     for x in prange(w):
         for y in prange(h):
             for state in range(7):
                 if particles[state,x,y] == 1 and partictot[x,y] == 1:
+                    # TODO : make it more concise by iterating on dr_close and dr_far, like so :
+                    # for dx,dy in [(1,0), (0,1), (-1,1), (-1,0), (0,-1), (1,-1)]:
+                    #       result += absparticles[:, (x+dx)%w, (y+dy)%h]
+                    
                     yplus1 = (y+1)%h
                     xplus1 = (x+1)%w
                     yplus2 = (y+2)%h
@@ -375,7 +459,10 @@ def neutronaction_cpu(particles :np.ndarray ,photons :np.ndarray ,w,h, create_ph
 
 @njit(parallel=True,cache=True)
 def propagation_prot_neut_cpu(particles, w,h,dirdico):
+    #TODO : Maybe this we can rewrite fully in numpy, without numba.
+    #Can use numpy.roll maybe ?
     newparticles=np.copy(particles)
+    
     for x in prange(w):
         for y in prange(h):
             loc = np.array([x,y])
@@ -386,6 +473,8 @@ def propagation_prot_neut_cpu(particles, w,h,dirdico):
 
 @njit(parallel=True,cache=True)
 def propagation_photon_cpu(photons, w,h,dirdico):
+    # TODO THIS IS THE SAME AS PROPAGATION_PROT_NEUT_CPU ! Just rename it 'propagation_cpu',
+    # and give it the approriate particle array to move, according to if we want to move photons or nucleons,.
     newphotons = np.copy(photons)
     for x in prange(w):
         for y in prange(h):
@@ -435,9 +524,11 @@ def absorption_cpu(particles: np.ndarray, photons: np.ndarray, w,h, constants):
                         if(np.random.uniform() < probability):
 
                             #absorption commands
-                            if(particle_direction == 6):
-                                if(newparticles[photon_direction,x,y] == 0):
-                                    new_particle_direction = photon_direction
+                            if(particle_direction == 6): # Particle at rest
+                                new_particle_direction = photon_direction
+                                # TODO THIS CODE IS REUSED EACH TIME, EXTRACT IT TO A FUNCTION
+                                # (for the break, just make a boolean, check at the end of the loop, and break if True)
+                                if(newparticles[photon_direction,x,y] == 0): # Check space is free
                                     #! Warning: We used newparticles not particles because absorption of previous photons affects next absorptions
                                     #! This dependancy is local, so it is okay that we probe nodes in the lattice
                                     newparticles[new_particle_direction,x,y] = newparticles[particle_direction,x,y]
@@ -452,6 +543,8 @@ def absorption_cpu(particles: np.ndarray, photons: np.ndarray, w,h, constants):
                                 
                                 if(momentum_difference == 3):
                                     new_particle_direction = 6
+                                    # TODO THIS CODE IS REUSED EACH TIME, EXTRACT IT TO A FUNCTION
+                                    # (for the break, just make a boolean, check at the end of the loop, and break if True)
                                     if(newparticles[new_particle_direction,x,y] == 0):
                                         newparticles[new_particle_direction,x,y] = newparticles[particle_direction,x,y]
                                         newparticles[particle_direction,x,y] = 0
@@ -461,6 +554,8 @@ def absorption_cpu(particles: np.ndarray, photons: np.ndarray, w,h, constants):
 
                                 elif(momentum_difference == 2):
                                     new_particle_direction = (1 + particle_direction) % 6
+                                    # TODO THIS CODE IS REUSED EACH TIME, EXTRACT IT TO A FUNCTION
+                                    # (for the break, just make a boolean, check at the end of the loop, and break if True)
                                     if(newparticles[new_particle_direction,x,y] == 0):
                                         newparticles[new_particle_direction,x,y] = newparticles[particle_direction,x,y]
                                         newparticles[particle_direction,x,y] = 0
@@ -470,6 +565,8 @@ def absorption_cpu(particles: np.ndarray, photons: np.ndarray, w,h, constants):
                                 
                                 elif(momentum_difference == 4):
                                     new_particle_direction = (5 + particle_direction) % 6
+                                    # TODO THIS CODE IS REUSED EACH TIME, EXTRACT IT TO A FUNCTION
+                                    # (for the break, just make a boolean, check at the end of the loop, and break if True)
                                     if(newparticles[new_particle_direction,x,y] == 0):
                                         newparticles[new_particle_direction,x,y] = newparticles[particle_direction,x,y]
                                         newparticles[particle_direction,x,y] = 0
@@ -481,12 +578,16 @@ def absorption_cpu(particles: np.ndarray, photons: np.ndarray, w,h, constants):
 
 @njit(cache=True)
 def scattering_dynamics_2_particle(particles, nonzero_indices):
+    """
+        Scatter dynamics where there are two particles in the same node.
+    """
     newparticles = np.copy(particles)
 
     smaller_index = nonzero_indices[0]
     bigger_index = nonzero_indices[1]
     momentum_difference = bigger_index - smaller_index
-
+    
+    # TODO : there are harcoded probabilities, check if it's intended.
     if (bigger_index == 6):
         if (np.random.uniform() < 0.5):
             newparticles[bigger_index] = particles[smaller_index]
@@ -573,6 +674,9 @@ def scattering_dynamics_2_particle(particles, nonzero_indices):
 
 @njit(cache=True)
 def scattering_dynamics_3_particle(particles, nonzero_indices):
+    """
+        Scattering for three particles in the same node. Crazy function ! Well played. I don't think it can be done much smaller, everything must be done explicitely.
+    """
     newparticles = np.copy(particles)
 
     index_1 = nonzero_indices[0]

@@ -10,7 +10,7 @@ def make_config(temporary=False):
     """
     CONFIG_NAME = 'no_photon'
 
-    WIDTH = 300
+    WIDTH = 350
     HEIGHT = 300
     FPS = 60
 
@@ -45,7 +45,7 @@ def make_config(temporary=False):
         ## REMOVE capitalization eventually
 
         # Set True if you want to see the photons, or False if you do not want to.
-        "photon_visualization": True,
+        "photon_visualization": False,
 
         # Set True if you want the sticking function to prefer the moving direction when there are many dominant directions, or False if you want no preference.
         "sticking_prefers_moving_direction": True,
@@ -85,12 +85,15 @@ def make_config(temporary=False):
     }
 
     initialization_dict = {
-        # Initialization uses normal random function if 'use_random' is set True, and uses manual function if is set False. 
+        # If this 'use_random' is true, will use the pre-defined random initialization, with the percentages
+        # If it is false, it will use 'custom_initialization' to initialize. You can define it in LoadConfig.py 
         'use_random': True,
-        'rand_particle_threshold': 2.5,
+        'proton_percent': 0.1,
+        'neutron_percent': 0,
         # Setting the initial array for protons and neutrons manually
         # first component is direction and second and third components are position of particles
         #! If you don't want to have protons or neutrons, you should define the initial numpy array and set it empty ([])
+        # TODO: After that you merged manual paticles and custom particles, you should change this part
         'manual_initial_protons': [[0,2,3],[3,3,2],[3,5,2],[3,5,4],[3,3,4],[1,3,2],[2,5,2],[5,5,4],[6,3,4]],
         'manual_initial_neutrons': [[0,2,5]]
     }

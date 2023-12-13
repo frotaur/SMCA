@@ -34,7 +34,7 @@ Inside the 'def make_config' function, there are several constants and dictionar
 
 `initialization_dict` dictionary : contains variable for initialization, for now not much.
     - `use` : if True, will use the random initialization. For now the False case has not been implemented, I think.
-    - `rand_particle_threshold` : governs the initial distribution of protons and neutrons. A neutron(proton) will be placed at a pixel if $\mathcal{N}(0,1)>threshold$ ($\mathcal{N}(0,1)<-threshold$), where $\mathcal{N}(0,1)$ is the centered gaussian.
+     - `proton_percent and neutron_percent` : values between 0. and 1., percentage-wise how many site should be occupied by (random direction) protons an nucleons. Actually the sum of those may go up to 7., because we can have up to 7 particles per site, but this will probably not be used.
 
 That's it ! You don't need to worry about the rest of the code. If you run `python CreateConfig.py`, a file should be generated in `configurations\`, with the name you specified.
 

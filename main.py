@@ -1,14 +1,12 @@
-import pygame
-from Camera import Camera
+import pygame, cv2
+from main_utils.Camera import Camera
 from Automaton import *
 from LoadConfig import load_config
 from CreateConfig import make_config
-import cv2
-import os
+from main_utils.main_utils import launch_recording
 
-# Select configuration name to load
-# If 'None', then it will create a new configuration JSON file based on the parameters in CreateConfig.py
-# If not 'None', then it will load the configuration JSON file with the name specified, so this file must exist in the configurations/ folder
+# SELECT CONFIGURATION NAME TO LOAD
+# If 'None', it will use configuration currently defined in CreateConfig.py
 CONFIG_NAME = None
 
 if(CONFIG_NAME is None):
@@ -16,13 +14,14 @@ if(CONFIG_NAME is None):
     CONFIG_NAME = 'current'
 
 
-
+# ------------------ LOAD CONFIGURATION AND INSTANCIATE AUTOMATON------------------
 config_folder = os.path.join(Path(__file__).parent.as_posix(),'configurations')
-
 configo = load_config(os.path.join(config_folder,f'{CONFIG_NAME}.json'))
 ((Width,Height),FPS) = configo['fixed'] # Fixed parameters
 (photon_creations, execution_order ,constants_dict) = configo['constants'] # Automaton parameters
 (init_particles,) = configo['init'] # Initialization
+auto = SMCA_Triangular((Width,Height), photon_creations, execution_order, constants_dict, init_particles)
+# ----------------------------------------------------------------------------------
 
 # Initialize the pygame screen 
 pygame.init()
@@ -31,20 +30,17 @@ clock = pygame.time.Clock()
 running = True
 camera = Camera(Width,Height)
 
-#Initialize the world_state array, of size (W,H,3) of RGB values at each position.
-world_state = np.random.randint(0,255,(Width,Height,3),dtype=np.uint8)
+#Initialize the world_state array (for visualization ONLY), of size (W,H,3) of RGB values at each position.
+world_state = np.zeros((Width,Height,3),dtype=np.uint8)
 
 # Initialize the automaton
 updating = True
 recording = False
 launch_video = False
 
-auto = SMCA_Triangular((Width,Height), photon_creations, execution_order, constants_dict, init_particles)
+
 
 while running:
-    # poll for events
-    # pygame.QUIT event means the user clicked X to close your window
-
     for event in pygame.event.get():
         # Event loop. Here we deal with all the interactivity
         if event.type == pygame.QUIT:
@@ -58,16 +54,16 @@ while running:
                     launch_video=True
             if(event.key == pygame.K_q):
                 # Here in principle we should randomize the prameters and set them
+                # The following is just a placeholder
                 auto.set_parameters(*(load_config(os.path.join(config_folder,f'no_photon.json'))['constants']),init_particles=None)
         # Handle the event loop for the camera
         camera.handle_event(event)
     
     
     if(updating):
-        # Step the automaton if we are updating
         auto.step()
 
-
+    auto.draw() # Draw the automaton, updates worldmap
     #Retrieve the world_state from automaton
     world_state = auto.worldmap
 
@@ -77,13 +73,10 @@ while running:
     #For recording
     if(recording):
         if(launch_video):
-            launch_video = False
-            fourcc = cv2.VideoWriter_fourcc(*'FFV1')
-            vid_loc = 'Videos/lgca1.mkv'
-            video_out = cv2.VideoWriter(vid_loc, fourcc, 30.0, (Width, Height))
-
+            video_out = launch_recording(Width,Height)
+            launch_video=False
         frame_bgr = cv2.cvtColor(auto.worldmap, cv2.COLOR_RGB2BGR)
-        video_out.write(frame_bgr)
+        video_out.write(frame_bgr.transpose(1,0,2))
         pygame.draw.circle(surface, (255,0,0), (Width-10,Height-10),2)
 
     # Clear the screen
@@ -93,10 +86,16 @@ while running:
     screen.blit(zoomed_surface, (0,0))
     # Update the screen
     pygame.display.flip()
-    # flip() the display to put your work on screen
 
-    clock.tick(FPS)  # limits FPS to 60
+    clock.tick(FPS)  # limits FPS
 
 
 pygame.quit()
-video_out.release()
+if(not launch_video):
+    video_out.release()
+
+
+
+
+
+

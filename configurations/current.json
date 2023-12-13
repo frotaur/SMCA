@@ -1,6 +1,6 @@
 {
     "SIZE": {
-        "W": 300,
+        "W": 350,
         "H": 300
     },
     "FPS": 60,
@@ -10,7 +10,7 @@
         "neutronaction_photon": false
     },
     "CONSTANTS": {
-        "photon_visualization": true,
+        "photon_visualization": false,
         "sticking_prefers_moving_direction": true,
         "particle_counting_steps": 1,
         "Probability_of_sticking": 1,
@@ -41,7 +41,8 @@
     ],
     "INITIALIZATION": {
         "use_random": true,
-        "rand_particle_threshold": 2.5,
+        "proton_percent": 0.1,
+        "neutron_percent": 0,
         "manual_initial_protons": [
             [
                 0,
