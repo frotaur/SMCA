@@ -243,19 +243,18 @@ class SMCA_Triangular(Automaton):
         """
             Annihilates the photons in an area called sink
         """
-        tmp =[0.0,0.04,0.08,0.04]
-        self.photons = sink_cpu(self.photons, self.w, self.h,tmp)
+        self.photons = sink_cpu(self.photons, self.w, self.h)
 
     def source_step(self):
         """
             Creates photons in an area or line or point called source
         """
         self.photons = source_cpu(self.photons, self.w, self.h)
-    def arbitrary_step(self):
+    def arbitrary_constraints_step(self):
         """
             This method is supposed to be used for testing and temporary purposes
         """
-        (self.particles,self.photons) = arbitrary_cpu(self.particles,self.photons, self.w, self.h)
+        (self.particles,self.photons) = arbitrary_constraints_cpu(self.particles,self.photons, self.w, self.h)
 
 
 @njit(parallel=True,cache=True)
@@ -1622,51 +1621,31 @@ def photon_annihilation_cpu(photons, w,h):
 
     return photons
 
-#! When you are creating a new sink or source don't forget that the our lattice is squared and by ignoring some of its nodes we make it hexagonal.
+#! When you are creating a new sink or source don't forget that our lattice is squared and by ignoring some of its nodes we make it hexagonal.
 
-#TODO: Numba says that this function can not be parallelized. Check it later.
-@njit(cache = True)
-def sink_cpu(photons, w,h,sink_value):
+@njit(parallel = True, cache = True)
+def sink_cpu(photons: np.ndarray, w,h):
+    """
+    Put all of your sinks here.
+    Don't forget to give every necessary parameters to the function and define it in the constant dictionary in the craete confing and load confige modules.
+    """
     
-    for i in prange(6):
-        for x in prange (int(4/5*w),int(5/5*w)):
-            for y in prange (h):
-                if np.random.uniform() < sink_value[0]:
-                    photons[i,x,y] = 0
-    
-    for i in prange(6):
-        for x in prange (int(3/5*w),int(4/5*w)):
-            for y in prange (h):
-                if np.random.uniform() < sink_value[1]:
-                    photons[i,x,y] = 0
-                    
-    for i in prange(6):
-        for x in prange (int(2/5*w),int(3/5*w)):
-            for y in prange(h):
-                if np.random.uniform() < sink_value[2]:
-                    photons[i,x,y] = 0
-    
-    for i in range(6):
-        for x in prange (int(1/5*w),int(2/5*w)):
-            for y in prange(h):
-                if np.random.uniform() < sink_value[3]:
-                    photons[i,x,y] = 0
-                    
-            
-                
-    
-
     return photons
 
-#TODO: Numba says that this function can not be parallelized. Check it later.
-@njit(cache = True)
-def source_cpu(photons, w,h):
-    photons[:,0,1::2] = 1
-    photons[:,1,0::2] = 1
-                
+
+@njit(parallel = True,cache = True)
+def source_cpu(photons: np.ndarray, w,h):
+    """
+    Put all of your sources here.
+    Don't forget to give every necessary parameters to the function and define it in the constant dictionary in the craete confing and load confige modules.
+    """            
         
     return photons
 
 @njit(parallel = True, cache = True)
-def arbitrary_cpu(particles: np.ndarray, photons: np.ndarray,w,h):
+def arbitrary_constraints_cpu(particles: np.ndarray, photons: np.ndarray,w,h):
+    """
+    This is a place holder for all arbitrary constraints that you want to impose on the system like a specific boundary condition.
+    Don't forget to give every necessary parameters to the function and define it in the constant dictionary in the craete confing and load confige modules.
+    """
     return (particles, photons)

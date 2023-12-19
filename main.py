@@ -4,6 +4,7 @@ from Automaton import *
 from LoadConfig import load_config
 from CreateConfig import make_config
 from main_utils.main_utils import launch_recording
+from LoadConfig import random_config
 
 # SELECT CONFIGURATION NAME TO LOAD
 # If 'None', it will use configuration currently defined in CreateConfig.py
@@ -52,10 +53,12 @@ while running:
                 recording= not recording
                 if(not launch_video):
                     launch_video=True
+            #by pressing q, system will be rerandomized
             if(event.key == pygame.K_q):
-                # Here in principle we should randomize the prameters and set them
-                # The following is just a placeholder
-                auto.set_parameters(*(load_config(os.path.join(config_folder,f'no_photon.json'))['constants']),init_particles=None)
+                new_config = random_config(Width,Height,FPS)
+                (photon_creations, execution_order ,constants_dict) = new_config['constants']
+                (init_particles,) = new_config['init']    
+                auto.set_parameters(photon_creations, execution_order, constants_dict, init_particles)
         # Handle the event loop for the camera
         camera.handle_event(event)
     

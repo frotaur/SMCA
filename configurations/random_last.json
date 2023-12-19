@@ -1,0 +1,48 @@
+{
+    "SIZE": {
+        "W": 350,
+        "H": 300
+    },
+    "FPS": 60,
+    "PHOTON_CREATIONS": {
+        "sticking_photon": true,
+        "protonaction_photon": false,
+        "neutronaction_photon": true
+    },
+    "EXEC_ORDER": [
+        "arbitrary_constraints_step",
+        "source_step",
+        "neutronaction_step",
+        "propagation_prot_neut_step",
+        "propagation_anti_photon_step",
+        "propagation_anti_photon_step",
+        "photon_annihilation_step",
+        "absorption_step"
+    ],
+    "CONSTANTS": {
+        "photon_visualization": false,
+        "particle_counting_steps": 50,
+        "Scattering_threshold_one": 3,
+        "Scattering_threshold_two": 8,
+        "sticking_prefers_moving_direction": false,
+        "Probability_of_sticking": 0.9918069937445235,
+        "Scattering_weight1": 0.22648553862559284,
+        "Scattering_weight2": 0.8921807404723857,
+        "Probability of scattering": 0.5390110850251938,
+        "Prot_Neut_weight1": 0.8832658179950775,
+        "Prot_Neut_weight2": 0.3050948140963027,
+        "Prot_Neut_threshold": 5,
+        "Prot_Neut_slope": 0.9343823435038381,
+        "Photon_absorption_probability_0": 0.5504082091880879,
+        "Photon_absorption_probability_1": 0.6089630410408586,
+        "Photon_absorption_probability_2": 0.8475288825590431,
+        "Photon_absorption_probability_3": 0.7221173877842302,
+        "Photon_absorption_probability_4": 0.9428943888365826,
+        "Photon_absorption_probability_5": 0.6056408693416431,
+        "Photon_absorption_probability_6": 0.6288401125936066
+    },
+    "INITIALIZATION": {
+        "PROTON_PERCENT": 0.16789194820284303,
+        "NEUTRON_PERCENT": 0.2173568476763225
+    }
+}

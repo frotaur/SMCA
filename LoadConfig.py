@@ -3,33 +3,6 @@ from pathlib import Path
 import numpy as np
 import random
 
-# TODO: custom particles and manual particles should be merged into one function
-def custom_particles(W,H):
-    """
-        Custom function for initialization state. It should return a particles tensor of integers,
-        of size (7,W,H) where 7 is the number of directions. -1 for proton, 1 for neutron, 0 for nothing. TODO : CHECK THIS.`
-        There are additional restriction, due to the data representation. Only (x,y) locations which will be considered will be
-        x odd, y even, and x even, y odd. This is due to the hexagonal grid representation. You can just fill it liberally, but 
-        these locations will be set to zero anyway.
-
-        Returns : (7,W,H) initialization of protons and neutrons.
-    """
-    # PLACEHOLDER IMPLEMENTATION :
-    particles = np.randint(-1,2,(7,W,H))
-
-    return particles
-
-def manual_particles(W,H, protons = np.ndarray, neutrons = np.ndarray):
-    particles = np.zeros((7,W,H))
-    for i in range(np.size(protons,axis = 0)):
-        particles[protons[i][0], protons[i][1], protons[i][2]] = -1
-
-    for i in range(np.size(neutrons,axis = 0)):
-        particles[neutrons[i][0], neutrons[i][1], neutrons[i][2]] = 1
-
-    return particles
-
-
 def load_config(path):
     """
         Loading config by path. If path is relative, assumes it is
@@ -72,6 +45,138 @@ def load_config(path):
             'constants' : (photon_creations,execution_order,constants_dict),
              'init' : (init_particles,)
      }
+
+
+
+
+def random_config(width,height,fps):
+    """
+        Creates a configurartion dictionary with random parameters.
+        ! Not sure, but I think it is better to not craete .json file here, we can create another function for that. 
+    """
+    CONFIG_NAME = 'random_last'
+
+    WIDTH = width
+    HEIGHT = height
+    FPS = fps
+
+    
+    
+    # * If you want any of interactions create photon, set their boolean True
+    photon_creations = {
+    "sticking_photon" : random.choice([True,False]),
+    "protonaction_photon" : random.choice([True,False]),
+    "neutronaction_photon" : random.choice([True,False])
+    }
+    
+    # Here we randomize all of our steps in one iteration(execuation order).
+    # execution_order includes 3 blocks: constraints_block, interaction_block, propag_and_photon_jobs_block. 
+        #constraints_block: contains the conditions imposed on the lattice, like boundary conditions, sink,source, etc. Their order is shuffled.
+        #interaction_block: contains sticking, scattering, protonaction, neutronaction, absorption. each of them can be whether exists or not and their order is shuffled.
+        #propag_and_photon_jobs_block: contains proton and neuron propagation, anitphoton/photon propagation, phton annihilation, and photon absorption. I recommend to not shuffle this block.
+            #proton and neutron propagation should always exists, and it is done only once in each iteration.
+            #antiphoton/photon propagation should always exists, and it can be done multiple times in each iteration.(the number of times is random)
+            #photon annihilation can exist or not, and it is done only once in each iteration if it exists.(its eexistence is random)
+            #photon absorption must always exist, since without it the existence of photon is meaningless. It is done only once in each iteration.
+        # ! The order of the blocks should not be changed, except you know what you are doing.
+    
+    # creating constraints_block
+    constraints_block = ['sink_step','source_step','arbitrary_constraints_step']
+    random.shuffle(constraints_block)
+    constraints_block = constraints_block[0:np.random.randint(0,len(constraints_block)+1)]
+    # TODO: All of our sink, source and arbitrary constraints are place holders. We should discuss about how to implement them.
+    # creating interaction_block
+    interaction_block = ['sticking_step','scattering_step','protonaction_step','neutronaction_step']
+    random.shuffle(interaction_block)
+    interaction_block = interaction_block[0:np.random.randint(1,len(interaction_block)+1)]
+    
+    # creating propag_and_photon_jobs_block
+    is_anitphoton_photon_propagation = random.choice([True,False])
+    is_photon_annihilation = random.choice([True])
+    maximum_number_of_photon_propagation = 3
+    propag_and_photon_jobs_block = ['propagation_prot_neut_step']
+    if is_anitphoton_photon_propagation == False: 
+        for _ in range(np.random.randint(1,maximum_number_of_photon_propagation+1)):
+            propag_and_photon_jobs_block.append('propagation_photon_step')
+    else:
+        for _ in range(np.random.randint(1,maximum_number_of_photon_propagation+1)):
+            propag_and_photon_jobs_block.append('propagation_anti_photon_step')
+    if is_photon_annihilation == True:
+        propag_and_photon_jobs_block.append('photon_annihilation_step')
+    propag_and_photon_jobs_block.append('absorption_step')
+
+    #combining all blocks
+    execution_order = constraints_block + interaction_block + propag_and_photon_jobs_block
+    
+       
+
+    # Recepie for randomizing constants_dict:
+        # 1. Separate constants into 2 gropus: randomizable and non-randomizable.
+        # 2. Randomize the randomizable constants.(to do so, you can randomize them outside of the dictionary and then add them to the dictionary)
+    constants_dict = {
+        # *non-randomizable constants:
+       
+        "photon_visualization": False,   # Set True if you want to see the photons, or False if you do not want to.
+        "particle_counting_steps": 50,  # After each n steps the code gives you a statistics of number of particles
+        "Scattering_threshold_one": 3,  # The threshold after which the probability of scattering decreases linearly
+        "Scattering_threshold_two": 8,  # The threshold after which the probability of scattering is zero
+
+        # *randomizable constants:
+        "sticking_prefers_moving_direction": random.choice([True,False]),   # Set True if you want the sticking function to prefer the moving direction when there are many dominant directions.
+        "Probability_of_sticking": np.random.uniform(0,1),  # The probability of sticking when a direction is dominant among the neighbours
+        "Scattering_weight1": np.random.uniform(0,1),   # weight1 and weight2 are the weight of first and second neighbours respectively in scattering
+        "Scattering_weight2": np.random.uniform(0,1),
+        "Probability of scattering": np.random.uniform(0,1),    # The probability of scattering when there is no neighbor moving in the same direction of the scattered particle
+        "Prot_Neut_weight1": np.random.uniform(0,1),  #weight1 and weight2 are the weight of first and second proton/neurton neighbours respectively
+        "Prot_Neut_weight2": np.random.uniform(0,1),
+        "Prot_Neut_threshold": np.random.randint(0,10),   #Threshold after which there is a probability that proton/neutron suddenly changes its direction
+        "Prot_Neut_slope": np.random.uniform(0,2),   #slope of the line of the linear increase of probability after threshold
+
+        #Probability of photon absorption based on the number of neighbors moving in the same direction
+        "Photon_absorption_probability_0": np.random.uniform(0,1),
+        "Photon_absorption_probability_1": np.random.uniform(0,1),
+        "Photon_absorption_probability_2": np.random.uniform(0,1),
+        "Photon_absorption_probability_3": np.random.uniform(0,1),
+        "Photon_absorption_probability_4": np.random.uniform(0,1),
+        "Photon_absorption_probability_5": np.random.uniform(0,1),
+        "Photon_absorption_probability_6": np.random.uniform(0,1),
+        
+    }
+    
+    #randomizing initial particles
+    proton_percent = np.random.uniform(0,0.4)
+    neutron_percent = np.random.uniform(0,0.4)
+    init_particles = sanitize_init_particles(percent_random_particles(proton_percent,neutron_percent,WIDTH,HEIGHT).astype(np.int16))
+
+    
+    
+    
+    
+    curpath = os.path.join(Path(__file__).parent.as_posix(),'configurations')
+
+    os.makedirs(curpath,exist_ok=True)
+
+    with open(os.path.join(curpath,CONFIG_NAME+'.json'),'w') as f:
+        full_config = {
+        'SIZE' : {'W':WIDTH,'H':HEIGHT},
+        'FPS' : FPS,
+        'PHOTON_CREATIONS' : photon_creations,
+        'EXEC_ORDER' : execution_order,
+        'CONSTANTS' : constants_dict,
+        'INITIALIZATION' : {'PROTON_PERCENT': proton_percent, 'NEUTRON_PERCENT': neutron_percent},
+        }
+        json.dump(full_config,f,indent=4)
+    
+    
+    
+    
+    return {'fixed':((WIDTH,HEIGHT),FPS),
+            'constants' : (photon_creations,execution_order,constants_dict),
+             'init' : (init_particles,)
+     }
+    
+
+        
 
 
 
@@ -129,112 +234,30 @@ def create_center_square(W, H, block_size):
     return particles
 
 
-def rando_config(width,height,fps,temporary=False):
-    """
-        Creates a configuration file with the random parameters.
-        STILL NEEDS WORK !
-
-        TO BE IMPLEMENTED STILL !!!!!!
-    """
-    CONFIG_NAME = 'random_last'
-
-    WIDTH = 300
-    HEIGHT = 300
-    FPS = 60
-
-    # * If you want any of interactions create photon, set their boolean True
-    photon_interactions = {
-    "sticking_photon" : random.choice([True,False]),
-    "protonaction_photon" : random.choice([True,False]),
-    "neutronaction_photon" : random.choice([True,False])
-    }
-
-    # Order this in the order you want the functions to be executed
-    photon_create_order = [
-            'sticking_photon',
-            'protonaction_photon',
-            'neutronaction_photon'
-    ]
-    random.shuffle(photon_create_order)
-    
-    # NOT SURE HOW TO RANDOMIZE THIS DISCUSS WITH ALI
-    execution_order = [
-        #'count_particles',
-        'propagation_prot_neut_step',
-        'propagation_photon_step',
-        'sticking_step',
-        #'scattering_step',
-        #'protonaction_step',
-        #'neutronaction_step',
-        'absorption_step',
-        # 'sink_step'
-    ]
-    random.shuffle(execution_order)
-
-    # RANDOMIZE THIS
-    constants_dict = {
-        ## REMOVE capitalization eventually
-        "particle_counting_steps": 1, # After each n steps the code gives you a statistics of number of particles
-
-        "Probability_of_sticking": 1,
-
-        #Defining weights for sticking; w1: the particle which incoming particle is facing, w2: two neighbors of w1, w3: two neighbors of w2s, w4: only neighbor of w3s
-        "Sticking_w1_input": 2,
-        "Sticking_w2_input": 1,
-        "Sticking_w3_input": 0,
-        "Sticking_w4_input": 0,
-
-        #Thresholds for deciding whether sticking happens or not; if the frequency of only one direction is more than threshold, then sticking happens.
-        #These numbers should always be considered as a number out of 6 (since we normalized our weights)
-        "Sticking_move_to_move_threshold": 4,
-        "Sticking_move_to_rest_threshold": 4,
-        "Sticking_rest_to_move_threshold": 4,
-
-        #weight1 and weight2 are the weight of first and second neighbours respectively in scattering
-        "Scattering_weight1": 1,
-        "Scattering_weight2": 1,
-        # The probability when there is no neighbor moving in the same direction of the scattered particle
-        "Probability of scattering": 0.5,
-        # The threshold after which the probability of scattering decreases
-        "Scattering_threshold_one": 3,
-        # The threshold after which the probability of scattering is zero
-        "Scattering_threshold_two": 7,
-
-        #weight1 and weight2 are the weight of first and second proton/neurton neighbours respectively
-        "Prot_Neut_weight1": 1,
-        "Prot_Neut_weight2": 0.5,
-
-        #Threshold after which there is a probability that proton/neutron suddenly changes its direction
-        "Prot_Neut_threshold": 6,
-        #slope of the line of the linear increase of probability after threshold
-        "Prot_Neut_slope": 0.3,
-
-        "Photon_absorption_probability": 0.5,
         
-        "sink_size": 30,
-    }
+        
+# TODO: custom particles and manual particles should be merged into one function
+def custom_particles(W,H):
+    """
+        Custom function for initialization state. It should return a particles tensor of integers,
+        of size (7,W,H) where 7 is the number of directions. -1 for proton, 1 for neutron, 0 for nothing. TODO : CHECK THIS.`
+        There are additional restriction, due to the data representation. Only (x,y) locations which will be considered will be
+        x odd, y even, and x even, y odd. This is due to the hexagonal grid representation. You can just fill it liberally, but 
+        these locations will be set to zero anyway.
 
-    initialization_dict = {
-        'use': True,
-        'rand_particle_threshold': 2.5
-    }
+        Returns : (7,W,H) initialization of protons and neutrons.
+    """
+    # PLACEHOLDER IMPLEMENTATION :
+    particles = np.randint(-1,2,(7,W,H))
 
+    return particles
 
-    curpath = os.path.join(Path(__file__).parent.as_posix(),'configurations')
+def manual_particles(W,H, protons = np.ndarray, neutrons = np.ndarray):
+    particles = np.zeros((7,W,H))
+    for i in range(np.size(protons,axis = 0)):
+        particles[protons[i][0], protons[i][1], protons[i][2]] = -1
 
-    os.makedirs(curpath,exist_ok=True)
+    for i in range(np.size(neutrons,axis = 0)):
+        particles[neutrons[i][0], neutrons[i][1], neutrons[i][2]] = 1
 
-    if(temporary):
-        CONFIG_NAME = 'current'
-    
-    with open(os.path.join(curpath,CONFIG_NAME+'.json'),'w') as f:
-        full_config = {
-        'SIZE' : {'W':WIDTH,'H':HEIGHT},
-        'FPS' : FPS,
-        'PHOTON_INTERACTIONS' : photon_interactions,
-        'PHOTON_CREATE_ORDER' : photon_create_order,
-        'CONSTANTS' : constants_dict,
-        'EXEC_ORDER' : execution_order,
-        'INITIALIZATION' : initialization_dict
-        }
-        json.dump(full_config,f,indent=4)
+    return particles
